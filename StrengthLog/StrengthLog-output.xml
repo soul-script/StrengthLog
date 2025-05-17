@@ -52,6 +52,7 @@ Assets.xcassets/
   Contents.json
 Models/
   ExerciseDefinition.swift
+  Extensions.swift
   SetEntry.swift
   WorkoutRecord.swift
 Views/
@@ -195,6 +196,33 @@ final class ExerciseDefinition {
         self.name = name
         self.dateAdded = dateAdded
     }
+}
+</file>
+
+<file path="Models/Extensions.swift">
+import Foundation
+
+// Helper for number formatters
+extension NumberFormatter {
+    static var decimal: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }
+
+    static var integer: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none // No thousands separators for reps
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }
+}
+
+// Epley formula: 1RM = weight × (1 + reps / 30)
+func calculateOneRepMax(weight: Double, reps: Int) -> Double {
+    guard reps > 0 else { return weight } // Avoid division by zero or negative reps issues in formula logic
+    return weight * (1 + Double(reps) / 30.0)
 }
 </file>
 
@@ -437,6 +465,7 @@ struct WorkoutHistoryListView: View {
 <file path="Views/WorkoutInputView.swift">
 import SwiftUI
 import SwiftData
+import Foundation
 
 struct WorkoutInputView: View {
     @Environment(\.modelContext) private var modelContext
@@ -567,29 +596,6 @@ struct WorkoutInputView: View {
     }
 }
 
-// Helper for number formatters
-extension NumberFormatter {
-    static var decimal: NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.maximumFractionDigits = 2
-        return formatter
-    }
-
-    static var integer: NumberFormatter {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .none // No thousands separators for reps
-        formatter.maximumFractionDigits = 0
-        return formatter
-    }
-}
-
-// Epley formula: 1RM = weight × (1 + reps / 30)
-func calculateOneRepMax(weight: Double, reps: Int) -> Double {
-    guard reps > 0 else { return weight } // Avoid division by zero or negative reps issues in formula logic
-    return weight * (1 + Double(reps) / 30.0)
-}
-
 // Preview needs an ExerciseDefinition.
 #Preview {
     // Create a dummy ExerciseDefinition for the preview
@@ -610,9 +616,17 @@ func calculateOneRepMax(weight: Double, reps: Int) -> Double {
 <file path="Views/WorkoutSessionDetailView.swift">
 import SwiftUI
 import SwiftData
+import Foundation
 
 struct WorkoutSessionDetailView: View {
+    @Environment(\.modelContext) private var modelContext
     var workoutRecord: WorkoutRecord
+    @State private var selectedSet: SetEntry? = nil
+    @State private var isEditingSet: Bool = false
+    @State private var editingWeight: Double = 0
+    @State private var editingReps: Int = 0
+    @State private var isEditingDate: Bool = false
+    @State private var editingDate: Date = Date()
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -635,6 +649,20 @@ struct WorkoutSessionDetailView: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 4)
+                        .contentShape(Rectangle()) // Make the entire row tappable
+                        .onTapGesture {
+                            selectedSet = set
+                            editingWeight = set.weight
+                            editingReps = set.reps
+                            isEditingSet = true
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            let setToDelete = workoutRecord.setEntries[index]
+                            modelContext.delete(setToDelete)
+                            workoutRecord.setEntries.remove(at: index)
+                        }
                     }
                 }
 
@@ -647,6 +675,80 @@ struct WorkoutSessionDetailView: View {
         }
         .navigationTitle("Session Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    editingDate = workoutRecord.date
+                    isEditingDate = true
+                }) {
+                    Label("Edit Date", systemImage: "calendar")
+                }
+            }
+        }
+        .sheet(isPresented: $isEditingSet) {
+            NavigationView {
+                Form {
+                    Section(header: Text("Edit Set")) {
+                        HStack {
+                            Text("Weight:")
+                            TextField("kg/lbs", value: $editingWeight, formatter: NumberFormatter.decimal)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        HStack {
+                            Text("Reps:")
+                            TextField("Count", value: $editingReps, formatter: NumberFormatter.integer)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
+                .navigationTitle("Edit Set")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            isEditingSet = false
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            if let set = selectedSet {
+                                set.weight = editingWeight
+                                set.reps = editingReps
+                                set.updateOneRepMax()
+                            }
+                            isEditingSet = false
+                        }
+                        .disabled(editingWeight <= 0 || editingReps <= 0)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $isEditingDate) {
+            NavigationView {
+                Form {
+                    Section(header: Text("Edit Workout Date")) {
+                        DatePicker("Date", selection: $editingDate, displayedComponents: .date)
+                    }
+                }
+                .navigationTitle("Edit Date")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            isEditingDate = false
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            workoutRecord.date = editingDate
+                            isEditingDate = false
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -691,6 +793,9 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var exercises: [ExerciseDefinition]
+    @State private var selectedExercise: ExerciseDefinition? = nil
+    @State private var isEditingExerciseName: Bool = false
+    @State private var editingName: String = ""
 
     var body: some View {
         NavigationSplitView {
@@ -718,6 +823,15 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                        .contextMenu {
+                            Button(action: {
+                                selectedExercise = exercise
+                                editingName = exercise.name
+                                isEditingExerciseName = true
+                            }) {
+                                Label("Edit Name", systemImage: "pencil")
+                            }
+                        }
                     }
                 }
                 .onDelete(perform: deleteExercise)
@@ -730,6 +844,34 @@ struct ContentView: View {
                 ToolbarItem {
                     Button(action: addExercise) {
                         Label("Add Exercise", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $isEditingExerciseName) {
+                NavigationView {
+                    Form {
+                        Section(header: Text("Edit Exercise Name")) {
+                            TextField("Exercise Name", text: $editingName)
+                                .textInputAutocapitalization(.words)
+                        }
+                    }
+                    .navigationTitle("Edit Exercise")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                isEditingExerciseName = false
+                            }
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Save") {
+                                if let exercise = selectedExercise {
+                                    exercise.name = editingName
+                                }
+                                isEditingExerciseName = false
+                            }
+                            .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
                     }
                 }
             }

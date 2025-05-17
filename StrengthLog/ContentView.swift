@@ -11,6 +11,9 @@ import SwiftData
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var exercises: [ExerciseDefinition]
+    @State private var selectedExercise: ExerciseDefinition? = nil
+    @State private var isEditingExerciseName: Bool = false
+    @State private var editingName: String = ""
 
     var body: some View {
         NavigationSplitView {
@@ -38,6 +41,15 @@ struct ContentView: View {
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
+                        .contextMenu {
+                            Button(action: {
+                                selectedExercise = exercise
+                                editingName = exercise.name
+                                isEditingExerciseName = true
+                            }) {
+                                Label("Edit Name", systemImage: "pencil")
+                            }
+                        }
                     }
                 }
                 .onDelete(perform: deleteExercise)
@@ -50,6 +62,34 @@ struct ContentView: View {
                 ToolbarItem {
                     Button(action: addExercise) {
                         Label("Add Exercise", systemImage: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $isEditingExerciseName) {
+                NavigationView {
+                    Form {
+                        Section(header: Text("Edit Exercise Name")) {
+                            TextField("Exercise Name", text: $editingName)
+                                .textInputAutocapitalization(.words)
+                        }
+                    }
+                    .navigationTitle("Edit Exercise")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                isEditingExerciseName = false
+                            }
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Save") {
+                                if let exercise = selectedExercise {
+                                    exercise.name = editingName
+                                }
+                                isEditingExerciseName = false
+                            }
+                            .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
                     }
                 }
             }

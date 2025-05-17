@@ -1,8 +1,16 @@
 import SwiftUI
 import SwiftData
+import Foundation
 
 struct WorkoutSessionDetailView: View {
+    @Environment(\.modelContext) private var modelContext
     var workoutRecord: WorkoutRecord
+    @State private var selectedSet: SetEntry? = nil
+    @State private var isEditingSet: Bool = false
+    @State private var editingWeight: Double = 0
+    @State private var editingReps: Int = 0
+    @State private var isEditingDate: Bool = false
+    @State private var editingDate: Date = Date()
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -25,6 +33,20 @@ struct WorkoutSessionDetailView: View {
                                 .foregroundColor(.secondary)
                         }
                         .padding(.vertical, 4)
+                        .contentShape(Rectangle()) // Make the entire row tappable
+                        .onTapGesture {
+                            selectedSet = set
+                            editingWeight = set.weight
+                            editingReps = set.reps
+                            isEditingSet = true
+                        }
+                    }
+                    .onDelete { indexSet in
+                        for index in indexSet {
+                            let setToDelete = workoutRecord.setEntries[index]
+                            modelContext.delete(setToDelete)
+                            workoutRecord.setEntries.remove(at: index)
+                        }
                     }
                 }
 
@@ -37,6 +59,80 @@ struct WorkoutSessionDetailView: View {
         }
         .navigationTitle("Session Details")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(action: {
+                    editingDate = workoutRecord.date
+                    isEditingDate = true
+                }) {
+                    Label("Edit Date", systemImage: "calendar")
+                }
+            }
+        }
+        .sheet(isPresented: $isEditingSet) {
+            NavigationView {
+                Form {
+                    Section(header: Text("Edit Set")) {
+                        HStack {
+                            Text("Weight:")
+                            TextField("kg/lbs", value: $editingWeight, formatter: NumberFormatter.decimal)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        HStack {
+                            Text("Reps:")
+                            TextField("Count", value: $editingReps, formatter: NumberFormatter.integer)
+                                .keyboardType(.numberPad)
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                }
+                .navigationTitle("Edit Set")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            isEditingSet = false
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            if let set = selectedSet {
+                                set.weight = editingWeight
+                                set.reps = editingReps
+                                set.updateOneRepMax()
+                            }
+                            isEditingSet = false
+                        }
+                        .disabled(editingWeight <= 0 || editingReps <= 0)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $isEditingDate) {
+            NavigationView {
+                Form {
+                    Section(header: Text("Edit Workout Date")) {
+                        DatePicker("Date", selection: $editingDate, displayedComponents: .date)
+                    }
+                }
+                .navigationTitle("Edit Date")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Button("Cancel") {
+                            isEditingDate = false
+                        }
+                    }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("Save") {
+                            workoutRecord.date = editingDate
+                            isEditingDate = false
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
