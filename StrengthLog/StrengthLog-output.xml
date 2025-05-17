@@ -1,0 +1,902 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+Assets.xcassets/
+  AccentColor.colorset/
+    Contents.json
+  AppIcon.appiconset/
+    Contents.json
+  Contents.json
+Models/
+  ExerciseDefinition.swift
+  SetEntry.swift
+  WorkoutRecord.swift
+Views/
+  ProgressChartsView.swift
+  WorkoutHistoryListView.swift
+  WorkoutInputView.swift
+  WorkoutSessionDetailView.swift
+ContentView.swift
+StrengthLog.entitlements
+StrengthLogApp.swift
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="Assets.xcassets/AccentColor.colorset/Contents.json">
+{
+  "colors" : [
+    {
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
+</file>
+
+<file path="Assets.xcassets/AppIcon.appiconset/Contents.json">
+{
+  "images" : [
+    {
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "tinted"
+        }
+      ],
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "16x16"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "16x16"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "32x32"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "32x32"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "128x128"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "128x128"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "256x256"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "256x256"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "1x",
+      "size" : "512x512"
+    },
+    {
+      "idiom" : "mac",
+      "scale" : "2x",
+      "size" : "512x512"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
+</file>
+
+<file path="Assets.xcassets/Contents.json">
+{
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
+</file>
+
+<file path="Models/ExerciseDefinition.swift">
+import Foundation
+import SwiftData
+
+@Model
+final class ExerciseDefinition {
+    @Attribute(.unique) var id: UUID
+    var name: String
+    var dateAdded: Date
+    
+    @Relationship(deleteRule: .cascade) var workoutRecords: [WorkoutRecord] = []
+    
+    init(name: String, dateAdded: Date = Date()) {
+        self.id = UUID()
+        self.name = name
+        self.dateAdded = dateAdded
+    }
+}
+</file>
+
+<file path="Models/SetEntry.swift">
+import Foundation
+import SwiftData
+
+@Model
+final class SetEntry: Identifiable {
+    @Attribute(.unique) var id: UUID
+    var weight: Double
+    var reps: Int
+    var calculatedOneRepMax: Double
+    
+    @Relationship(deleteRule: .nullify) var workoutRecord: WorkoutRecord?
+    
+    init(weight: Double, reps: Int, workoutRecord: WorkoutRecord? = nil) {
+        self.id = UUID()
+        self.weight = weight
+        self.reps = reps
+        self.workoutRecord = workoutRecord
+        self.calculatedOneRepMax = weight * (1 + Double(reps) / 30)
+    }
+    
+    // Update one-rep max when weight or reps change
+    func updateOneRepMax() {
+        self.calculatedOneRepMax = calculateOneRepMax(weight: weight, reps: reps)
+    }
+    
+    // Epley formula: 1RM = weight × (1 + reps / 30)
+    private func calculateOneRepMax(weight: Double, reps: Int) -> Double {
+        return weight * (1 + Double(reps) / 30)
+    }
+}
+</file>
+
+<file path="Models/WorkoutRecord.swift">
+import Foundation
+import SwiftData
+
+@Model
+final class WorkoutRecord {
+    @Attribute(.unique) var id: UUID
+    var date: Date
+    
+    @Relationship(deleteRule: .nullify) var exerciseDefinition: ExerciseDefinition?
+    @Relationship(deleteRule: .cascade) var setEntries: [SetEntry] = []
+    
+    init(date: Date = Date(), exerciseDefinition: ExerciseDefinition? = nil) {
+        self.id = UUID()
+        self.date = date
+        self.exerciseDefinition = exerciseDefinition
+    }
+    
+    var totalVolume: Double {
+        setEntries.reduce(0) { $0 + $1.weight * Double($1.reps) }
+    }
+}
+
+// MARK: - Phase 5: Basic Progress Visualization
+extension WorkoutRecord {
+    var bestOneRepMaxInSession: Double {
+        guard !setEntries.isEmpty else { return 0.0 }
+        return setEntries.reduce(0.0) { max($0, $1.calculatedOneRepMax) }
+    }
+}
+</file>
+
+<file path="Views/ProgressChartsView.swift">
+import SwiftUI
+import Charts
+import SwiftData
+
+struct ProgressChartsView: View {
+    @Query var exerciseDefinitions: [ExerciseDefinition]
+    @State private var selectedExercise: ExerciseDefinition? = nil
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if exerciseDefinitions.isEmpty {
+                    Text("No exercises available. Please add exercises first.")
+                        .padding()
+                } else {
+                    Picker("Select Exercise", selection: $selectedExercise) {
+                        ForEach(exerciseDefinitions, id: \.id) { exercise in
+                            Text(exercise.name).tag(Optional(exercise))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.horizontal)
+                    .onAppear {
+                        if selectedExercise == nil, let firstExercise = exerciseDefinitions.first {
+                            selectedExercise = firstExercise
+                        }
+                    }
+                    
+                    if let exercise = selectedExercise {
+                        let records = exercise.workoutRecords
+                        if !records.isEmpty {
+                            let sortedRecords = records.sorted(by: { $0.date < $1.date })
+                            
+                            VStack(alignment: .leading) {
+                                Text("Estimated 1RM Trend for \(exercise.name)")
+                                    .font(.headline)
+                                Chart(sortedRecords) { record in
+                                    LineMark(x: .value("Date", record.date), y: .value("Est. 1RM", record.bestOneRepMaxInSession))
+                                    PointMark(x: .value("Date", record.date), y: .value("Est. 1RM", record.bestOneRepMaxInSession))
+                                }
+                                .chartXAxisLabel("Date")
+                                .chartYAxisLabel("Est. 1RM (kg)")
+                                .frame(height: 200)
+                            }
+                            
+                            VStack(alignment: .leading) {
+                                Text("Training Volume Trend for \(exercise.name)")
+                                    .font(.headline)
+                                Chart(sortedRecords) { record in
+                                    LineMark(x: .value("Date", record.date), y: .value("Volume", record.totalVolume))
+                                    PointMark(x: .value("Date", record.date), y: .value("Volume", record.totalVolume))
+                                }
+                                .chartXAxisLabel("Date")
+                                .chartYAxisLabel("Volume (kg)")
+                                .frame(height: 200)
+                            }
+                        } else {
+                            Text("No workout records available for \(exercise.name).")
+                                .padding()
+                        }
+                    } else if !exerciseDefinitions.isEmpty {
+                        Text("Please select an exercise to see progress.")
+                            .padding()
+                    } else {
+                        Text("No data available.")
+                            .padding()
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("Progress Charts")
+    }
+}
+
+struct ProgressChartsView_Previews: PreviewProvider {
+    @MainActor // Ensures Core Data/SwiftData access is on the main thread for previews
+    static func createSampleData(modelContext: ModelContext) {
+        let sampleExercise1 = ExerciseDefinition(name: "Bench Press")
+        let sampleExercise2 = ExerciseDefinition(name: "Squat")
+        modelContext.insert(sampleExercise1)
+        modelContext.insert(sampleExercise2)
+        
+        let record1Ex1 = WorkoutRecord(date: Calendar.current.date(byAdding: .day, value: -10, to: Date())!, exerciseDefinition: sampleExercise1)
+        let set1Ex1Rec1 = SetEntry(weight: 80, reps: 5, workoutRecord: record1Ex1)
+        modelContext.insert(record1Ex1) // Insert parent first
+        modelContext.insert(set1Ex1Rec1) // Insert child
+        // SwiftData should automatically link relationships if defined correctly.
+        // If manual linking is needed (e.g. one-way or specific cases):
+        // record1Ex1.setEntries.append(set1Ex1Rec1) 
+        // sampleExercise1.workoutRecords.append(record1Ex1)
+
+        let record2Ex1 = WorkoutRecord(date: Calendar.current.date(byAdding: .day, value: -5, to: Date())!, exerciseDefinition: sampleExercise1)
+        let set1Ex1Rec2 = SetEntry(weight: 85, reps: 5, workoutRecord: record2Ex1)
+        modelContext.insert(record2Ex1)
+        modelContext.insert(set1Ex1Rec2)
+        // record2Ex1.setEntries.append(set1Ex1Rec2)
+        // sampleExercise1.workoutRecords.append(record2Ex1)
+        
+        // Add a record for the second exercise to test selection
+        let record1Ex2 = WorkoutRecord(date: Calendar.current.date(byAdding: .day, value: -7, to: Date())!, exerciseDefinition: sampleExercise2)
+        let set1Ex2Rec1 = SetEntry(weight: 100, reps: 5, workoutRecord: record1Ex2)
+        modelContext.insert(record1Ex2)
+        modelContext.insert(set1Ex2Rec1)
+        // record1Ex2.setEntries.append(set1Ex2Rec1)
+        // sampleExercise2.workoutRecords.append(record1Ex2)
+    }
+
+    static var previews: some View {
+        // This is the more modern #Preview macro style. 
+        // If your project uses the older PreviewProvider struct, the .modelContainer approach is fine.
+        // For clarity and to avoid buildExpression errors, we separate data setup.
+        
+        // Setup for PreviewProvider struct:
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+        createSampleData(modelContext: container.mainContext) // Populate with data
+
+        return ProgressChartsView()
+            .modelContainer(container)
+    }
+}
+</file>
+
+<file path="Views/WorkoutHistoryListView.swift">
+import SwiftUI
+import SwiftData
+
+struct WorkoutHistoryListView: View {
+    @Query(sort: [SortDescriptor(\WorkoutRecord.date, order: .reverse)]) var workoutRecords: [WorkoutRecord]
+
+    var body: some View {
+        List {
+            ForEach(workoutRecords) { record in
+                NavigationLink {
+                    WorkoutSessionDetailView(workoutRecord: record)
+                } label: {
+                    HStack {
+                        VStack(alignment: .leading) {
+                            Text(record.exerciseDefinition?.name ?? "Unknown Exercise")
+                                .font(.headline)
+                            Text(record.date, format: .dateTime.day().month().year())
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        VStack(alignment: .trailing) {
+                            Text("\(record.setEntries.count) sets")
+                                .font(.subheadline)
+                            Text("Volume: \(record.totalVolume, format: .number.precision(.fractionLength(1)))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("Workout History")
+    }
+}
+
+#Preview {
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+    WorkoutHistoryListView()
+        .modelContainer(container)
+}
+</file>
+
+<file path="Views/WorkoutInputView.swift">
+import SwiftUI
+import SwiftData
+
+struct WorkoutInputView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) var dismiss
+
+    var exerciseDefinition: ExerciseDefinition
+
+    @State private var workoutDate: Date = Date()
+    @State private var sets: [TemporarySetEntry] = []
+    @State private var currentWeight: Double = 0
+    @State private var currentReps: Int = 0
+    
+    // Computed property for current total volume
+    var currentTotalVolume: Double {
+        sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+    }
+    
+    // Temporary struct to hold set data before saving
+    struct TemporarySetEntry: Identifiable {
+        let id = UUID()
+        var weight: Double
+        var reps: Int
+        var oneRepMax: Double {
+            calculateOneRepMax(weight: weight, reps: reps)
+        }
+    }
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Workout Details")) {
+                    DatePicker("Date", selection: $workoutDate, displayedComponents: .date)
+                }
+
+                Section(header: Text("Add Set")) {
+                    HStack {
+                        Text("Weight:")
+                        TextField("kg/lbs", value: $currentWeight, formatter: NumberFormatter.decimal)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    HStack {
+                        Text("Reps:")
+                        TextField("Count", value: $currentReps, formatter: NumberFormatter.integer)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    Button("Add Set") {
+                        addSet()
+                    }
+                    .disabled(currentWeight <= 0 || currentReps <= 0)
+                }
+
+                if !sets.isEmpty {
+                    Section(header: Text("Logged Sets (\(sets.count))")) {
+                        List {
+                            ForEach(sets) { set in
+                                HStack {
+                                    Text("\(set.weight, specifier: "%.1f") kg/lbs x \(set.reps) reps")
+                                    Spacer()
+                                    Text("1RM: \(set.oneRepMax, specifier: "%.1f")")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            }
+                            .onDelete(perform: deleteSet)
+                        }
+                    }
+                }
+
+                Section(header: Text("Total Volume")) {
+                    Text("\(currentTotalVolume, format: .number.precision(.fractionLength(1)))")
+                        .font(.title2)
+                        .padding(.vertical, 4)
+                }
+            }
+            .navigationTitle("Log Workout: \(exerciseDefinition.name)")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save Workout") {
+                        saveWorkout()
+                        dismiss()
+                    }
+                    .disabled(sets.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func addSet() {
+        guard currentWeight > 0, currentReps > 0 else { return }
+        let newSet = TemporarySetEntry(weight: currentWeight, reps: currentReps)
+        sets.append(newSet)
+        // Optionally reset fields after adding a set
+        // currentWeight = 0
+        // currentReps = 0
+    }
+
+    private func deleteSet(at offsets: IndexSet) {
+        sets.remove(atOffsets: offsets)
+    }
+
+    private func saveWorkout() {
+        let newWorkoutRecord = WorkoutRecord(date: workoutDate, exerciseDefinition: exerciseDefinition)
+        modelContext.insert(newWorkoutRecord)
+
+        for tempSet in sets {
+            let setEntry = SetEntry(weight: tempSet.weight, reps: tempSet.reps, workoutRecord: newWorkoutRecord)
+            // The 1RM is already calculated in SetEntry's initializer.
+            // We can ensure it's updated if necessary, but the current SetEntry model does this.
+            // setEntry.updateOneRepMax() // This would re-calculate, initializer should be sufficient
+            modelContext.insert(setEntry)
+        }
+        
+        // Link the workout record to the exercise definition
+        // This relationship might be implicitly handled if ExerciseDefinition.workoutRecords is an array
+        // that SwiftData manages. If not, manual linking might be needed.
+        // exerciseDefinition.workoutRecords.append(newWorkoutRecord) // Check if this is needed or automatic
+
+        // No explicit save needed for modelContext with SwiftData's autosave,
+        // but good practice to be aware of transactionality.
+        // try? modelContext.save() // If manual save is ever preferred or needed.
+    }
+}
+
+// Helper for number formatters
+extension NumberFormatter {
+    static var decimal: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.maximumFractionDigits = 2
+        return formatter
+    }
+
+    static var integer: NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none // No thousands separators for reps
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }
+}
+
+// Epley formula: 1RM = weight × (1 + reps / 30)
+func calculateOneRepMax(weight: Double, reps: Int) -> Double {
+    guard reps > 0 else { return weight } // Avoid division by zero or negative reps issues in formula logic
+    return weight * (1 + Double(reps) / 30.0)
+}
+
+// Preview needs an ExerciseDefinition.
+#Preview {
+    // Create a dummy ExerciseDefinition for the preview
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+    let exampleExercise = ExerciseDefinition(name: "Bench Press")
+    // It's important to insert the exampleExercise into the context if WorkoutInputView or its children might try to use its modelContext.
+    // However, for this specific preview, WorkoutInputView primarily uses the passed exerciseDefinition for its name and to link upon saving.
+    // If the view were to, for example, immediately fetch related data *from* the exerciseDefinition using its context, insertion would be critical here.
+    // For now, just passing it should be fine for display and initial interaction.
+    // container.mainContext.insert(exampleExercise) // Uncomment if issues arise related to model context from exercise.
+    
+    WorkoutInputView(exerciseDefinition: exampleExercise)
+        .modelContainer(container) // Provide the container to the view hierarchy for @Environment(\.modelContext).
+}
+</file>
+
+<file path="Views/WorkoutSessionDetailView.swift">
+import SwiftUI
+import SwiftData
+
+struct WorkoutSessionDetailView: View {
+    var workoutRecord: WorkoutRecord
+
+    var body: some View {
+        VStack(alignment: .leading) {
+            Text(workoutRecord.exerciseDefinition?.name ?? "Unknown Exercise")
+                .font(.largeTitle)
+                .padding(.bottom, 2)
+
+            Text(workoutRecord.date, format: .dateTime.day().month().year())
+                .font(.headline)
+                .padding(.bottom, 10)
+
+            List {
+                Section(header: Text("Sets")) {
+                    ForEach(workoutRecord.setEntries) { set in
+                        HStack {
+                            Text("\(set.weight, format: .number.precision(.fractionLength(1))) × \(set.reps) reps")
+                            Spacer()
+                            Text("1RM: \(set.calculatedOneRepMax, format: .number.precision(.fractionLength(1)))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+
+                Section(header: Text("Total Volume")) {
+                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1)))")
+                        .font(.title2)
+                        .padding(.vertical, 4)
+                }
+            }
+        }
+        .navigationTitle("Session Details")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+#Preview {
+    // Group all setup logic
+    let (record, container) = {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+        let exercise = ExerciseDefinition(name: "Bench Press")
+        let record = WorkoutRecord(date: Date(), exerciseDefinition: exercise)
+        let set1 = SetEntry(weight: 80, reps: 8, workoutRecord: record)
+        let set2 = SetEntry(weight: 85, reps: 5, workoutRecord: record)
+        
+        container.mainContext.insert(exercise)
+        container.mainContext.insert(record)
+        container.mainContext.insert(set1)
+        container.mainContext.insert(set2)
+        
+        record.setEntries.append(set1)
+        record.setEntries.append(set2)
+        
+        return (record, container) // Return the necessary data
+    }()
+
+    // Ensure the view is returned properly
+    return WorkoutSessionDetailView(workoutRecord: record)
+        .modelContainer(container)
+}
+</file>
+
+<file path="ContentView.swift">
+//
+//  ContentView.swift
+//  StrengthLog
+//
+//  Created by Aditya Mishra on 5/13/25.
+//
+
+import SwiftUI
+import SwiftData
+
+struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var exercises: [ExerciseDefinition]
+
+    var body: some View {
+        NavigationSplitView {
+            List {
+                NavigationLink {
+                    WorkoutHistoryListView()
+                } label: {
+                    Label("Workout History", systemImage: "clock")
+                }
+                
+                NavigationLink {
+                    ProgressChartsView()
+                } label: {
+                    Label("Progress Charts", systemImage: "chart.xyaxis.line")
+                }
+                
+                ForEach(exercises) { exercise in
+                    NavigationLink {
+                        ExerciseDetailView(exercise: exercise)
+                    } label: {
+                        VStack(alignment: .leading) {
+                            Text(exercise.name)
+                                .font(.headline)
+                            Text("Added: \(exercise.dateAdded, format: .dateTime.day().month().year())")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+                .onDelete(perform: deleteExercise)
+            }
+            .navigationTitle("Exercises")
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    EditButton()
+                }
+                ToolbarItem {
+                    Button(action: addExercise) {
+                        Label("Add Exercise", systemImage: "plus")
+                    }
+                }
+            }
+        } detail: {
+            Text("Select an exercise to view workout records")
+        }
+    }
+
+    private func addExercise() {
+        withAnimation {
+            let newExercise = ExerciseDefinition(name: "New Exercise")
+            modelContext.insert(newExercise)
+        }
+    }
+
+    private func deleteExercise(offsets: IndexSet) {
+        withAnimation {
+            for index in offsets {
+                modelContext.delete(exercises[index])
+            }
+        }
+    }
+}
+
+struct ExerciseDetailView: View {
+    var exercise: ExerciseDefinition
+    @State private var showingAddWorkoutSheet = false
+
+    var body: some View {
+        VStack {
+            Text("Workout records for \(exercise.name)")
+                .font(.headline)
+                .padding()
+            
+            if exercise.workoutRecords.isEmpty {
+                ContentUnavailableView(
+                    "No workouts yet",
+                    systemImage: "dumbbell",
+                    description: Text("Tap the + button to log your first workout")
+                )
+            } else {
+                List {
+                    ForEach(exercise.workoutRecords) { workout in
+                        VStack(alignment: .leading) {
+                            Text("Date: \(workout.date, format: .dateTime.day().month().year())")
+                                .font(.headline)
+                            
+                            Text("Sets: \(workout.setEntries.count)")
+                                .font(.subheadline)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Button(action: {
+                showingAddWorkoutSheet = true
+            }) {
+                Label("Add Workout", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .padding()
+        }
+        .navigationTitle(exercise.name)
+        .sheet(isPresented: $showingAddWorkoutSheet) {
+            WorkoutInputView(exerciseDefinition: exercise)
+        }
+    }
+}
+
+#Preview {
+    ContentView()
+        .modelContainer(for: [
+            ExerciseDefinition.self,
+            WorkoutRecord.self,
+            SetEntry.self
+        ], inMemory: true)
+}
+</file>
+
+<file path="StrengthLog.entitlements">
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-only</key>
+    <true/>
+</dict>
+</plist>
+</file>
+
+<file path="StrengthLogApp.swift">
+//
+//  StrengthLogApp.swift
+//  StrengthLog
+//
+//  Created by Aditya Mishra on 5/13/25.
+//
+
+import SwiftUI
+import SwiftData
+
+@main
+struct StrengthLogApp: App {
+    var sharedModelContainer: ModelContainer = {
+        let schema = Schema([
+            ExerciseDefinition.self,
+            WorkoutRecord.self,
+            SetEntry.self
+        ])
+        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
+
+        do {
+            return try ModelContainer(for: schema, configurations: [modelConfiguration])
+        } catch {
+            fatalError("Could not create ModelContainer: \(error)")
+        }
+    }()
+
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .onAppear {
+                    preloadExerciseDataIfNeeded()
+                }
+        }
+        .modelContainer(sharedModelContainer)
+    }
+    
+    // Function to preload exercise data if needed
+    private func preloadExerciseDataIfNeeded() {
+        Task {
+            do {
+                let modelContext = sharedModelContainer.mainContext
+                let descriptor = FetchDescriptor<ExerciseDefinition>(predicate: nil)
+                let existingExercises = try modelContext.fetch(descriptor)
+                
+                // Only preload if there are no exercises yet
+                if existingExercises.isEmpty {
+                    let defaultExercises = [
+                        "Squat",
+                        "Bench Press",
+                        "Deadlift",
+                        "Overhead Press",
+                        "Barbell Row",
+                        "Pull-ups"
+                    ]
+                    
+                    for exerciseName in defaultExercises {
+                        let exercise = ExerciseDefinition(name: exerciseName)
+                        modelContext.insert(exercise)
+                    }
+                    
+                    try modelContext.save()
+                    print("Preloaded default exercises")
+                }
+            } catch {
+                print("Failed to preload exercise data: \(error)")
+            }
+        }
+    }
+}
+</file>
+
+</files>
