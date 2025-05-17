@@ -56,10 +56,13 @@ Models/
   SetEntry.swift
   WorkoutRecord.swift
 Views/
+  AppIconPreviewView.swift
+  DataManagementView.swift
   ProgressChartsView.swift
   WorkoutHistoryListView.swift
   WorkoutInputView.swift
   WorkoutSessionDetailView.swift
+AppIcon.swift
 ContentView.swift
 StrengthLog.entitlements
 StrengthLogApp.swift
@@ -219,9 +222,17 @@ extension NumberFormatter {
     }
 }
 
-// Epley formula: 1RM = weight × (1 + reps / 30)
+// Modified Epley formula: If reps = 1, use actual weight as 1RM
+// Otherwise, use Epley formula: 1RM = weight × (1 + reps / 30)
 func calculateOneRepMax(weight: Double, reps: Int) -> Double {
     guard reps > 0 else { return weight } // Avoid division by zero or negative reps issues in formula logic
+    
+    // For 1-rep sets, use the actual weight as the 1RM
+    if reps == 1 {
+        return weight
+    }
+    
+    // For multiple reps, use the Epley formula
     return weight * (1 + Double(reps) / 30.0)
 }
 </file>
@@ -244,7 +255,13 @@ final class SetEntry: Identifiable {
         self.weight = weight
         self.reps = reps
         self.workoutRecord = workoutRecord
-        self.calculatedOneRepMax = weight * (1 + Double(reps) / 30)
+        
+        // Apply the 1RM calculation based on reps
+        if reps == 1 {
+            self.calculatedOneRepMax = weight
+        } else {
+            self.calculatedOneRepMax = weight * (1 + Double(reps) / 30.0)
+        }
     }
     
     // Update one-rep max when weight or reps change
@@ -291,6 +308,412 @@ extension WorkoutRecord {
 }
 </file>
 
+<file path="Views/AppIconPreviewView.swift">
+import SwiftUI
+
+struct AppIconPreviewView: View {
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("App Icon Preview")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            
+            AppIcon()
+                .frame(width: 300, height: 300)
+                .clipShape(RoundedRectangle(cornerRadius: 60))
+                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+            
+            Text("StrengthLog App Icon")
+                .font(.title2)
+            
+            Text("To use this icon in your app, take a screenshot and add it to your Xcode project's Assets catalog.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal)
+        }
+        .padding()
+    }
+}
+
+#Preview {
+    AppIconPreviewView()
+}
+</file>
+
+<file path="Views/DataManagementView.swift">
+import SwiftUI
+import SwiftData
+import UniformTypeIdentifiers
+
+struct DataManagementView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var exercises: [ExerciseDefinition]
+    @Query private var workouts: [WorkoutRecord]
+    @Query private var sets: [SetEntry]
+    
+    @State private var exportURL: URL?
+    @State private var isExporting = false
+    @State private var isImporting = false
+    @State private var showingExportSuccess = false
+    @State private var showingImportSuccess = false
+    @State private var showingError = false
+    @State private var errorMessage = ""
+    @State private var showingClearConfirmation = false
+    
+    var body: some View {
+        List {
+            Section(header: Text("Export Data")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Export all your workout data to a JSON file")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Button(action: exportData) {
+                        Label("Export Data", systemImage: "arrow.up.doc")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .padding(.vertical, 8)
+                }
+            }
+            
+            Section(header: Text("Import Data")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Import workout data from a JSON file")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Warning: This will replace all existing data")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    
+                    Button(action: { isImporting = true }) {
+                        Label("Import Data", systemImage: "arrow.down.doc")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.vertical, 8)
+                }
+            }
+            
+            Section(header: Text("Clear Data")) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Delete all exercises and workout records")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Text("Warning: This action cannot be undone")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                    
+                    Button(action: { showingClearConfirmation = true }) {
+                        Label("Clear All Data", systemImage: "trash")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .foregroundColor(.red)
+                    .padding(.vertical, 8)
+                }
+            }
+            
+            Section(header: Text("Database Statistics")) {
+                HStack {
+                    Text("Exercises")
+                    Spacer()
+                    Text("\(exercises.count)")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Workout Records")
+                    Spacer()
+                    Text("\(workouts.count)")
+                        .foregroundColor(.secondary)
+                }
+                
+                HStack {
+                    Text("Set Entries")
+                    Spacer()
+                    Text("\(sets.count)")
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .navigationTitle("Data Management")
+        .fileExporter(
+            isPresented: $isExporting,
+            document: JSONDocument(initialText: createExportJSON()),
+            contentType: .json,
+            defaultFilename: "StrengthLog_Export_\(formattedDate())"
+        ) { result in
+            switch result {
+            case .success:
+                showingExportSuccess = true
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+                showingError = true
+            }
+        }
+        .fileImporter(
+            isPresented: $isImporting,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false
+        ) { result in
+            switch result {
+            case .success(let urls):
+                guard let selectedURL = urls.first else { return }
+                
+                if selectedURL.startAccessingSecurityScopedResource() {
+                    defer { selectedURL.stopAccessingSecurityScopedResource() }
+                    
+                    do {
+                        let data = try Data(contentsOf: selectedURL)
+                        try importData(from: data)
+                        showingImportSuccess = true
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingError = true
+                    }
+                }
+            case .failure(let error):
+                errorMessage = error.localizedDescription
+                showingError = true
+            }
+        }
+        .alert("Export Successful", isPresented: $showingExportSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your data has been successfully exported.")
+        }
+        .alert("Import Successful", isPresented: $showingImportSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Your data has been successfully imported.")
+        }
+        .alert("Error", isPresented: $showingError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(errorMessage)
+        }
+        .alert("Clear All Data", isPresented: $showingClearConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Clear", role: .destructive) {
+                clearAllData()
+            }
+        } message: {
+            Text("Are you sure you want to delete all exercises and workout records? This action cannot be undone.")
+        }
+    }
+    
+    private func exportData() {
+        isExporting = true
+    }
+    
+    private func clearAllData() {
+        // Delete all exercises (which will cascade delete all workout records and sets due to relationship rules)
+        for exercise in exercises {
+            modelContext.delete(exercise)
+        }
+        
+        // Try to save the context explicitly to ensure changes are persisted immediately
+        do {
+            try modelContext.save()
+        } catch {
+            errorMessage = "Error clearing data: \(error.localizedDescription)"
+            showingError = true
+        }
+    }
+    
+    private func createExportJSON() -> String {
+        do {
+            // Create a data structure to represent the export data
+            struct ExportData: Codable {
+                var exercises: [ExerciseData]
+            }
+            
+            struct ExerciseData: Codable {
+                var id: UUID
+                var name: String
+                var dateAdded: Date
+                var workouts: [WorkoutData]
+            }
+            
+            struct WorkoutData: Codable {
+                var id: UUID
+                var date: Date
+                var sets: [SetData]
+            }
+            
+            struct SetData: Codable {
+                var id: UUID
+                var weight: Double
+                var reps: Int
+                var calculatedOneRepMax: Double
+            }
+            
+            // Convert the model data to the export structure
+            var exportExercises: [ExerciseData] = []
+            
+            for exercise in exercises {
+                var workoutDataArray: [WorkoutData] = []
+                
+                for workout in exercise.workoutRecords {
+                    var setDataArray: [SetData] = []
+                    
+                    for set in workout.setEntries {
+                        let setData = SetData(
+                            id: set.id,
+                            weight: set.weight,
+                            reps: set.reps,
+                            calculatedOneRepMax: set.calculatedOneRepMax
+                        )
+                        setDataArray.append(setData)
+                    }
+                    
+                    let workoutData = WorkoutData(
+                        id: workout.id,
+                        date: workout.date,
+                        sets: setDataArray
+                    )
+                    workoutDataArray.append(workoutData)
+                }
+                
+                let exerciseData = ExerciseData(
+                    id: exercise.id,
+                    name: exercise.name,
+                    dateAdded: exercise.dateAdded,
+                    workouts: workoutDataArray
+                )
+                exportExercises.append(exerciseData)
+            }
+            
+            let exportData = ExportData(exercises: exportExercises)
+            
+            // Convert to JSON
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let jsonData = try encoder.encode(exportData)
+            
+            if let jsonString = String(data: jsonData, encoding: .utf8) {
+                return jsonString
+            }
+        } catch {
+            errorMessage = "Error creating export data: \(error.localizedDescription)"
+            showingError = true
+        }
+        
+        return "{\"error\": \"Failed to create export data\"}"
+    }
+    
+    private func importData(from data: Data) throws {
+        // Define the import data structure
+        struct ImportData: Codable {
+            var exercises: [ExerciseData]
+        }
+        
+        struct ExerciseData: Codable {
+            var id: UUID
+            var name: String
+            var dateAdded: Date
+            var workouts: [WorkoutData]
+        }
+        
+        struct WorkoutData: Codable {
+            var id: UUID
+            var date: Date
+            var sets: [SetData]
+        }
+        
+        struct SetData: Codable {
+            var id: UUID
+            var weight: Double
+            var reps: Int
+            var calculatedOneRepMax: Double
+        }
+        
+        // Parse the JSON data
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let importData = try decoder.decode(ImportData.self, from: data)
+        
+        // Clear existing data
+        for exercise in exercises {
+            modelContext.delete(exercise)
+        }
+        
+        // Import the new data
+        for exerciseData in importData.exercises {
+            let exercise = ExerciseDefinition(name: exerciseData.name, dateAdded: exerciseData.dateAdded)
+            exercise.id = exerciseData.id
+            modelContext.insert(exercise)
+            
+            for workoutData in exerciseData.workouts {
+                let workout = WorkoutRecord(date: workoutData.date, exerciseDefinition: exercise)
+                workout.id = workoutData.id
+                modelContext.insert(workout)
+                
+                for setData in workoutData.sets {
+                    let set = SetEntry(weight: setData.weight, reps: setData.reps, workoutRecord: workout)
+                    set.id = setData.id
+                    set.calculatedOneRepMax = setData.calculatedOneRepMax
+                    modelContext.insert(set)
+                    workout.setEntries.append(set)
+                }
+                
+                exercise.workoutRecords.append(workout)
+            }
+        }
+        
+        // Save changes
+        try modelContext.save()
+    }
+    
+    private func formattedDate() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
+}
+
+// Document type for exporting JSON data
+struct JSONDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    
+    var text: String
+    
+    init(initialText: String = "") {
+        text = initialText
+    }
+    
+    init(configuration: ReadConfiguration) throws {
+        guard let data = configuration.file.regularFileContents,
+              let string = String(data: data, encoding: .utf8)
+        else {
+            throw CocoaError(.fileReadCorruptFile)
+        }
+        text = string
+    }
+    
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        let data = Data(text.utf8)
+        return FileWrapper(regularFileWithContents: data)
+    }
+}
+
+#Preview {
+    NavigationView {
+        DataManagementView()
+            .modelContainer(for: [
+                ExerciseDefinition.self,
+                WorkoutRecord.self,
+                SetEntry.self
+            ], inMemory: true)
+    }
+}
+</file>
+
 <file path="Views/ProgressChartsView.swift">
 import SwiftUI
 import Charts
@@ -299,71 +722,238 @@ import SwiftData
 struct ProgressChartsView: View {
     @Query var exerciseDefinitions: [ExerciseDefinition]
     @State private var selectedExercise: ExerciseDefinition? = nil
+    @State private var selectedDataPoint: (date: Date, value: Double)? = nil
+    @State private var chartType: ChartType = .oneRepMax
+    @State private var timeRange: TimeRange = .allTime
+    
+    enum ChartType: String, CaseIterable, Identifiable {
+        case oneRepMax = "1RM"
+        case volume = "Volume"
+        
+        var id: String { self.rawValue }
+    }
+    
+    enum TimeRange: String, CaseIterable, Identifiable {
+        case month = "1 Month"
+        case threeMonths = "3 Months"
+        case sixMonths = "6 Months"
+        case year = "1 Year"
+        case allTime = "All Time"
+        
+        var id: String { self.rawValue }
+        
+        var days: Int? {
+            switch self {
+            case .month: return 30
+            case .threeMonths: return 90
+            case .sixMonths: return 180
+            case .year: return 365
+            case .allTime: return nil
+            }
+        }
+    }
     
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                if exerciseDefinitions.isEmpty {
-                    Text("No exercises available. Please add exercises first.")
-                        .padding()
-                } else {
-                    Picker("Select Exercise", selection: $selectedExercise) {
-                        ForEach(exerciseDefinitions, id: \.id) { exercise in
-                            Text(exercise.name).tag(Optional(exercise))
+        VStack(alignment: .leading, spacing: 20) {
+            if exerciseDefinitions.isEmpty {
+                ContentUnavailableView(
+                    "No exercises available",
+                    systemImage: "chart.xyaxis.line",
+                    description: Text("Add exercises first to see your progress charts")
+                )
+            } else {
+                Picker("Select Exercise", selection: $selectedExercise) {
+                    ForEach(exerciseDefinitions, id: \.id) { exercise in
+                        Text(exercise.name).tag(Optional(exercise))
+                    }
+                }
+                .pickerStyle(.menu)
+                .padding(.horizontal)
+                .onChange(of: selectedExercise) { _, _ in
+                    // Reset selected data point when changing exercise
+                    selectedDataPoint = nil
+                }
+                .onAppear {
+                    if selectedExercise == nil, let firstExercise = exerciseDefinitions.first {
+                        selectedExercise = firstExercise
+                    }
+                }
+                
+                HStack {
+                    Picker("Chart Type", selection: $chartType) {
+                        ForEach(ChartType.allCases) { type in
+                            Text(type.rawValue).tag(type)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(maxWidth: .infinity)
+                    
+                    Picker("Time Range", selection: $timeRange) {
+                        ForEach(TimeRange.allCases) { range in
+                            Text(range.rawValue).tag(range)
                         }
                     }
                     .pickerStyle(.menu)
-                    .padding(.horizontal)
-                    .onAppear {
-                        if selectedExercise == nil, let firstExercise = exerciseDefinitions.first {
-                            selectedExercise = firstExercise
-                        }
-                    }
-                    
-                    if let exercise = selectedExercise {
-                        let records = exercise.workoutRecords
-                        if !records.isEmpty {
-                            let sortedRecords = records.sorted(by: { $0.date < $1.date })
-                            
-                            VStack(alignment: .leading) {
-                                Text("Estimated 1RM Trend for \(exercise.name)")
-                                    .font(.headline)
-                                Chart(sortedRecords) { record in
-                                    LineMark(x: .value("Date", record.date), y: .value("Est. 1RM", record.bestOneRepMaxInSession))
-                                    PointMark(x: .value("Date", record.date), y: .value("Est. 1RM", record.bestOneRepMaxInSession))
-                                }
-                                .chartXAxisLabel("Date")
-                                .chartYAxisLabel("Est. 1RM (kg)")
-                                .frame(height: 200)
-                            }
-                            
-                            VStack(alignment: .leading) {
-                                Text("Training Volume Trend for \(exercise.name)")
-                                    .font(.headline)
-                                Chart(sortedRecords) { record in
-                                    LineMark(x: .value("Date", record.date), y: .value("Volume", record.totalVolume))
-                                    PointMark(x: .value("Date", record.date), y: .value("Volume", record.totalVolume))
-                                }
-                                .chartXAxisLabel("Date")
-                                .chartYAxisLabel("Volume (kg)")
-                                .frame(height: 200)
-                            }
+                }
+                .padding(.horizontal)
+                .onChange(of: chartType) { _, _ in
+                    // Reset selected data point when changing chart type
+                    selectedDataPoint = nil
+                }
+                .onChange(of: timeRange) { _, _ in
+                    // Reset selected data point when changing time range
+                    selectedDataPoint = nil
+                }
+                
+                if let exercise = selectedExercise {
+                    let records = exercise.workoutRecords
+                    if !records.isEmpty {
+                        let filteredRecords = filterRecordsByTimeRange(records.sorted(by: { $0.date < $1.date }))
+                        
+                        if filteredRecords.isEmpty {
+                            ContentUnavailableView(
+                                "No data in selected time range",
+                                systemImage: "chart.xyaxis.line",
+                                description: Text("Try selecting a different time range")
+                            )
                         } else {
-                            Text("No workout records available for \(exercise.name).")
-                                .padding()
+                            // Chart container
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(chartTitle)
+                                    .font(.headline)
+                                    .padding(.horizontal)
+                                
+                                chartView(for: filteredRecords)
+                                    .frame(height: 250)
+                                    .padding(.horizontal, 8)
+                                
+                                // Selected data point information
+                                if let selected = selectedDataPoint {
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text("Date: \(selected.date, format: .dateTime.day().month().year())")
+                                                .font(.subheadline)
+                                            Text("\(chartType == .oneRepMax ? "1RM" : "Volume"): \(selected.value, specifier: "%.1f")")
+                                                .font(.subheadline.bold())
+                                        }
+                                        Spacer()
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemBackground))
+                                    .cornerRadius(10)
+                                    .padding(.horizontal)
+                                }
+                                
+                                // Instructions
+                                Text("Tap on a data point for details")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+                                    .padding(.top, 4)
+                            }
                         }
-                    } else if !exerciseDefinitions.isEmpty {
-                        Text("Please select an exercise to see progress.")
-                            .padding()
                     } else {
-                        Text("No data available.")
-                            .padding()
+                        ContentUnavailableView(
+                            "No workout records",
+                            systemImage: "chart.xyaxis.line",
+                            description: Text("Log workouts for \(exercise.name) to see progress charts")
+                        )
                     }
+                } else if !exerciseDefinitions.isEmpty {
+                    Text("Please select an exercise to see progress.")
+                        .padding()
+                } else {
+                    Text("No data available.")
+                        .padding()
                 }
             }
-            .padding()
         }
+        .padding(.vertical)
         .navigationTitle("Progress Charts")
+    }
+    
+    private func filterRecordsByTimeRange(_ records: [WorkoutRecord]) -> [WorkoutRecord] {
+        guard let days = timeRange.days else {
+            return records // All time, no filtering
+        }
+        
+        let cutoffDate = Calendar.current.date(byAdding: .day, value: -days, to: Date()) ?? Date()
+        return records.filter { $0.date >= cutoffDate }
+    }
+    
+    private var chartTitle: String {
+        guard let exercise = selectedExercise else { return "" }
+        let typeLabel = chartType == .oneRepMax ? "Estimated 1RM Trend" : "Training Volume Trend"
+        return "\(typeLabel) for \(exercise.name) (\(timeRange.rawValue))"
+    }
+    
+    @ViewBuilder
+    private func chartView(for records: [WorkoutRecord]) -> some View {
+        Chart {
+            ForEach(records) { record in
+                let yValue = chartType == .oneRepMax ? record.bestOneRepMaxInSession : record.totalVolume
+                
+                LineMark(
+                    x: .value("Date", record.date),
+                    y: .value(chartType == .oneRepMax ? "Est. 1RM" : "Volume", yValue)
+                )
+                .foregroundStyle(chartType == .oneRepMax ? Color.blue : Color.green)
+                .interpolationMethod(.catmullRom)
+                
+                PointMark(
+                    x: .value("Date", record.date),
+                    y: .value(chartType == .oneRepMax ? "Est. 1RM" : "Volume", yValue)
+                )
+                .foregroundStyle(chartType == .oneRepMax ? Color.blue : Color.green)
+                .symbolSize(selectedDataPoint?.date == record.date ? 150 : 100)
+            }
+        }
+        .chartXAxis {
+            AxisMarks(values: .automatic) { value in
+                AxisGridLine()
+                AxisValueLabel(format: .dateTime.month().day())
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading) { value in
+                AxisGridLine()
+                AxisValueLabel()
+            }
+        }
+        .chartYScale(domain: .automatic(includesZero: true))
+        .chartXScale(domain: .automatic)
+        .chartLegend(.hidden)
+        .chartOverlay { proxy in
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(Color.clear)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                let xPosition = value.location.x
+                                guard let date = proxy.value(atX: xPosition, as: Date.self) else { return }
+                                
+                                // Find the closest data point
+                                var closestRecord: WorkoutRecord?
+                                var minDistance: TimeInterval = .infinity
+                                
+                                for record in records {
+                                    let distance = abs(record.date.timeIntervalSince(date))
+                                    if distance < minDistance {
+                                        minDistance = distance
+                                        closestRecord = record
+                                    }
+                                }
+                                
+                                if let record = closestRecord {
+                                    let value = chartType == .oneRepMax ? record.bestOneRepMaxInSession : record.totalVolume
+                                    selectedDataPoint = (date: record.date, value: value)
+                                }
+                            }
+                    )
+            }
+        }
     }
 }
 
@@ -475,8 +1065,8 @@ struct WorkoutInputView: View {
 
     @State private var workoutDate: Date = Date()
     @State private var sets: [TemporarySetEntry] = []
-    @State private var currentWeight: Double = 0
-    @State private var currentReps: Int = 0
+    @State private var weightString: String = ""
+    @State private var repsString: String = ""
     
     // Computed property for current total volume
     var currentTotalVolume: Double {
@@ -503,20 +1093,20 @@ struct WorkoutInputView: View {
                 Section(header: Text("Add Set")) {
                     HStack {
                         Text("Weight:")
-                        TextField("kg/lbs", value: $currentWeight, formatter: NumberFormatter.decimal)
+                        TextField("kg/lbs", text: $weightString)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
                     HStack {
                         Text("Reps:")
-                        TextField("Count", value: $currentReps, formatter: NumberFormatter.integer)
+                        TextField("Count", text: $repsString)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                     }
                     Button("Add Set") {
                         addSet()
                     }
-                    .disabled(currentWeight <= 0 || currentReps <= 0)
+                    .disabled(!isValidInput())
                 }
 
                 if !sets.isEmpty {
@@ -552,21 +1142,36 @@ struct WorkoutInputView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save Workout") {
                         saveWorkout()
-                        dismiss()
                     }
                     .disabled(sets.isEmpty)
                 }
             }
         }
     }
+    
+    private func isValidInput() -> Bool {
+        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+              let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
+              weight > 0,
+              reps > 0 else {
+            return false
+        }
+        return true
+    }
 
     private func addSet() {
-        guard currentWeight > 0, currentReps > 0 else { return }
-        let newSet = TemporarySetEntry(weight: currentWeight, reps: currentReps)
+        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+              let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
+              weight > 0,
+              reps > 0 else {
+            return
+        }
+        
+        let newSet = TemporarySetEntry(weight: weight, reps: reps)
         sets.append(newSet)
-        // Optionally reset fields after adding a set
-        // currentWeight = 0
-        // currentReps = 0
+        
+        // Keep the values for easier entry of multiple sets with similar values
+        // User can edit as needed for the next set
     }
 
     private func deleteSet(at offsets: IndexSet) {
@@ -574,25 +1179,30 @@ struct WorkoutInputView: View {
     }
 
     private func saveWorkout() {
+        // Create the workout record
         let newWorkoutRecord = WorkoutRecord(date: workoutDate, exerciseDefinition: exerciseDefinition)
         modelContext.insert(newWorkoutRecord)
 
+        // Add all sets to the workout record
         for tempSet in sets {
             let setEntry = SetEntry(weight: tempSet.weight, reps: tempSet.reps, workoutRecord: newWorkoutRecord)
-            // The 1RM is already calculated in SetEntry's initializer.
-            // We can ensure it's updated if necessary, but the current SetEntry model does this.
-            // setEntry.updateOneRepMax() // This would re-calculate, initializer should be sufficient
             modelContext.insert(setEntry)
+            newWorkoutRecord.setEntries.append(setEntry)
         }
         
-        // Link the workout record to the exercise definition
-        // This relationship might be implicitly handled if ExerciseDefinition.workoutRecords is an array
-        // that SwiftData manages. If not, manual linking might be needed.
-        // exerciseDefinition.workoutRecords.append(newWorkoutRecord) // Check if this is needed or automatic
-
-        // No explicit save needed for modelContext with SwiftData's autosave,
-        // but good practice to be aware of transactionality.
-        // try? modelContext.save() // If manual save is ever preferred or needed.
+        // Explicitly add the workout record to the exercise's workoutRecords array
+        // This ensures the relationship is properly established in both directions
+        exerciseDefinition.workoutRecords.append(newWorkoutRecord)
+        
+        // Try to save the context explicitly to ensure changes are persisted immediately
+        do {
+            try modelContext.save()
+        } catch {
+            print("Error saving workout: \(error)")
+        }
+        
+        // Dismiss the view after saving
+        dismiss()
     }
 }
 
@@ -779,6 +1389,105 @@ struct WorkoutSessionDetailView: View {
 }
 </file>
 
+<file path="AppIcon.swift">
+import SwiftUI
+
+struct AppIcon: View {
+    var body: some View {
+        ZStack {
+            // Background gradient
+            LinearGradient(
+                gradient: Gradient(colors: [Color(hex: "1A2980"), Color(hex: "26D0CE")]),
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            
+            // Dumbbell design
+            HStack(spacing: 12) {
+                // Left weight
+                WeightPlate()
+                
+                // Bar
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.white.opacity(0.9))
+                    .frame(width: 80, height: 12)
+                
+                // Right weight
+                WeightPlate()
+            }
+            
+            // App name at bottom
+            VStack {
+                Spacer()
+                Text("STRENGTH LOG")
+                    .font(.system(size: 24, weight: .heavy, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.bottom, 40)
+            }
+        }
+        .frame(width: 1024, height: 1024)
+    }
+}
+
+struct WeightPlate: View {
+    var body: some View {
+        ZStack {
+            // Outer ring
+            Circle()
+                .fill(Color.gray.opacity(0.8))
+                .frame(width: 120, height: 120)
+            
+            // Inner ring
+            Circle()
+                .fill(Color.black.opacity(0.7))
+                .frame(width: 100, height: 100)
+            
+            // Center hole
+            Circle()
+                .fill(Color.white.opacity(0.9))
+                .frame(width: 20, height: 20)
+        }
+        .shadow(color: .black.opacity(0.5), radius: 10, x: 0, y: 5)
+    }
+}
+
+// Helper extension to create colors from hex values
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue: Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
+// Preview for the app icon
+struct AppIcon_Previews: PreviewProvider {
+    static var previews: some View {
+        AppIcon()
+            .previewLayout(.fixed(width: 1024, height: 1024))
+    }
+}
+</file>
+
 <file path="ContentView.swift">
 //
 //  ContentView.swift
@@ -796,53 +1505,65 @@ struct ContentView: View {
     @State private var selectedExercise: ExerciseDefinition? = nil
     @State private var isEditingExerciseName: Bool = false
     @State private var editingName: String = ""
+    @State private var isAddingExercise: Bool = false
+    @State private var newExerciseName: String = ""
 
     var body: some View {
         NavigationSplitView {
             List {
-                NavigationLink {
-                    WorkoutHistoryListView()
-                } label: {
-                    Label("Workout History", systemImage: "clock")
-                }
-                
-                NavigationLink {
-                    ProgressChartsView()
-                } label: {
-                    Label("Progress Charts", systemImage: "chart.xyaxis.line")
-                }
-                
-                ForEach(exercises) { exercise in
+                Section(header: Text("Features")) {
                     NavigationLink {
-                        ExerciseDetailView(exercise: exercise)
+                        WorkoutHistoryListView()
                     } label: {
-                        VStack(alignment: .leading) {
-                            Text(exercise.name)
-                                .font(.headline)
-                            Text("Added: \(exercise.dateAdded, format: .dateTime.day().month().year())")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                        .contextMenu {
-                            Button(action: {
-                                selectedExercise = exercise
-                                editingName = exercise.name
-                                isEditingExerciseName = true
-                            }) {
-                                Label("Edit Name", systemImage: "pencil")
+                        Label("Workout History", systemImage: "clock")
+                    }
+                    
+                    NavigationLink {
+                        ProgressChartsView()
+                    } label: {
+                        Label("Progress Charts", systemImage: "chart.xyaxis.line")
+                    }
+                    
+                    NavigationLink {
+                        DataManagementView()
+                    } label: {
+                        Label("Data Management", systemImage: "square.and.arrow.up.on.square")
+                    }
+                }
+                
+                Section(header: Text("My Exercises")) {
+                    ForEach(exercises) { exercise in
+                        NavigationLink {
+                            ExerciseDetailView(exercise: exercise)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                Text(exercise.name)
+                                    .font(.headline)
+                                Text("Added: \(exercise.dateAdded, format: .dateTime.day().month().year())")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            .contextMenu {
+                                Button(action: {
+                                    selectedExercise = exercise
+                                    editingName = exercise.name
+                                    isEditingExerciseName = true
+                                }) {
+                                    Label("Edit Name", systemImage: "pencil")
+                                }
                             }
                         }
                     }
+                    .onDelete(perform: deleteExercise)
                 }
-                .onDelete(perform: deleteExercise)
             }
-            .navigationTitle("Exercises")
+            .navigationTitle("StrengthLog")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     EditButton()
                 }
                 ToolbarItem {
-                    Button(action: addExercise) {
+                    Button(action: promptForNewExercise) {
                         Label("Add Exercise", systemImage: "plus")
                     }
                 }
@@ -875,14 +1596,47 @@ struct ContentView: View {
                     }
                 }
             }
+            .sheet(isPresented: $isAddingExercise) {
+                NavigationView {
+                    Form {
+                        Section(header: Text("New Exercise Name")) {
+                            TextField("Exercise Name", text: $newExerciseName)
+                                .textInputAutocapitalization(.words)
+                        }
+                    }
+                    .navigationTitle("Add Exercise")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarLeading) {
+                            Button("Cancel") {
+                                newExerciseName = ""
+                                isAddingExercise = false
+                            }
+                        }
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("Save") {
+                                addExercise(name: newExerciseName)
+                                newExerciseName = ""
+                                isAddingExercise = false
+                            }
+                            .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+                }
+            }
         } detail: {
             Text("Select an exercise to view workout records")
         }
     }
 
-    private func addExercise() {
+    private func promptForNewExercise() {
+        newExerciseName = ""
+        isAddingExercise = true
+    }
+
+    private func addExercise(name: String) {
         withAnimation {
-            let newExercise = ExerciseDefinition(name: "New Exercise")
+            let newExercise = ExerciseDefinition(name: name)
             modelContext.insert(newExercise)
         }
     }
@@ -897,14 +1651,99 @@ struct ContentView: View {
 }
 
 struct ExerciseDetailView: View {
+    @Environment(\.modelContext) private var modelContext
     var exercise: ExerciseDefinition
     @State private var showingAddWorkoutSheet = false
+    @State private var showingDeleteConfirmation = false
+    @State private var workoutToDelete: WorkoutRecord? = nil
+    
+    // Computed properties for best performance metrics
+    private var bestOneRepMaxData: (value: Double, date: Date)? {
+        guard !exercise.workoutRecords.isEmpty else { return nil }
+        
+        var bestOneRM: Double = 0
+        var bestDate: Date = Date()
+        var foundValidOneRM = false
+        
+        for workout in exercise.workoutRecords {
+            for setEntry in workout.setEntries {
+                if setEntry.calculatedOneRepMax > bestOneRM {
+                    bestOneRM = setEntry.calculatedOneRepMax
+                    bestDate = workout.date
+                    foundValidOneRM = true
+                }
+            }
+        }
+        
+        return foundValidOneRM ? (value: bestOneRM, date: bestDate) : nil
+    }
+    
+    private var bestVolumeWorkout: (volume: Double, date: Date)? {
+        guard !exercise.workoutRecords.isEmpty else { return nil }
+        
+        let workoutWithMaxVolume = exercise.workoutRecords.max { $0.totalVolume < $1.totalVolume }
+        if let workout = workoutWithMaxVolume {
+            return (volume: workout.totalVolume, date: workout.date)
+        }
+        return nil
+    }
 
     var body: some View {
         VStack {
-            Text("Workout records for \(exercise.name)")
-                .font(.headline)
-                .padding()
+            if !exercise.workoutRecords.isEmpty {
+                // Summary card for best performance metrics
+                VStack(spacing: 10) {
+                    Text("Personal Records")
+                        .font(.headline)
+                        .padding(.top, 8)
+                    
+                    HStack(spacing: 20) {
+                        VStack {
+                            Text("Best 1RM")
+                                .font(.subheadline)
+                            if let bestOneRM = bestOneRepMaxData {
+                                Text("\(bestOneRM.value, specifier: "%.1f")")
+                                    .font(.title3.bold())
+                                    .foregroundColor(.blue)
+                                Text("\(bestOneRM.date, format: .dateTime.day().month())")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("N/A")
+                                    .font(.title3)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        
+                        Divider().frame(height: 40)
+                        
+                        VStack {
+                            Text("Best Volume")
+                                .font(.subheadline)
+                            if let bestVolume = bestVolumeWorkout {
+                                Text("\(bestVolume.volume, specifier: "%.1f")")
+                                    .font(.title3.bold())
+                                    .foregroundColor(.green)
+                                Text("\(bestVolume.date, format: .dateTime.day().month())")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            } else {
+                                Text("N/A")
+                                    .font(.title3)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 8)
+                }
+                .background(Color(UIColor.secondarySystemBackground))
+                .cornerRadius(10)
+                .padding(.horizontal)
+                .padding(.bottom, 8)
+            }
             
             if exercise.workoutRecords.isEmpty {
                 ContentUnavailableView(
@@ -914,16 +1753,63 @@ struct ExerciseDetailView: View {
                 )
             } else {
                 List {
-                    ForEach(exercise.workoutRecords) { workout in
-                        VStack(alignment: .leading) {
+                    ForEach(exercise.workoutRecords.sorted(by: { $0.date > $1.date })) { workout in
+                        VStack(alignment: .leading, spacing: 6) {
                             Text("Date: \(workout.date, format: .dateTime.day().month().year())")
                                 .font(.headline)
                             
-                            Text("Sets: \(workout.setEntries.count)")
-                                .font(.subheadline)
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text("Sets: \(workout.setEntries.count)")
+                                        .font(.subheadline)
+                                    
+                                    Text("Total Volume: \(workout.totalVolume, specifier: "%.1f")")
+                                        .font(.subheadline)
+                                }
+                                
+                                Spacer()
+                                
+                                VStack(alignment: .trailing) {
+                                    Text("Best 1RM:")
+                                        .font(.subheadline)
+                                    
+                                    Text("\(workout.bestOneRepMaxInSession, specifier: "%.1f")")
+                                        .font(.subheadline.bold())
+                                        .foregroundColor(.blue)
+                                }
+                            }
                         }
                         .padding(.vertical, 4)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                workoutToDelete = workout
+                                showingDeleteConfirmation = true
+                            } label: {
+                                Label("Delete Workout", systemImage: "trash")
+                            }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                workoutToDelete = workout
+                                showingDeleteConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
                     }
+                }
+                .alert("Delete Workout", isPresented: $showingDeleteConfirmation) {
+                    Button("Cancel", role: .cancel) {
+                        workoutToDelete = nil
+                    }
+                    Button("Delete", role: .destructive) {
+                        if let workout = workoutToDelete {
+                            deleteWorkout(workout)
+                            workoutToDelete = nil
+                        }
+                    }
+                } message: {
+                    Text("Are you sure you want to delete this workout? This action cannot be undone.")
                 }
             }
             
@@ -941,6 +1827,23 @@ struct ExerciseDetailView: View {
         .navigationTitle(exercise.name)
         .sheet(isPresented: $showingAddWorkoutSheet) {
             WorkoutInputView(exerciseDefinition: exercise)
+        }
+    }
+    
+    private func deleteWorkout(_ workout: WorkoutRecord) {
+        // Remove the workout from the exercise's workoutRecords array
+        if let index = exercise.workoutRecords.firstIndex(where: { $0.id == workout.id }) {
+            exercise.workoutRecords.remove(at: index)
+        }
+        
+        // Delete the workout from the model context
+        modelContext.delete(workout)
+        
+        // Try to save the context explicitly to ensure changes are persisted immediately
+        do {
+            try modelContext.save()
+        } catch {
+            print("Error deleting workout: \(error)")
         }
     }
 }
@@ -999,44 +1902,8 @@ struct StrengthLogApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .onAppear {
-                    preloadExerciseDataIfNeeded()
-                }
         }
         .modelContainer(sharedModelContainer)
-    }
-    
-    // Function to preload exercise data if needed
-    private func preloadExerciseDataIfNeeded() {
-        Task {
-            do {
-                let modelContext = sharedModelContainer.mainContext
-                let descriptor = FetchDescriptor<ExerciseDefinition>(predicate: nil)
-                let existingExercises = try modelContext.fetch(descriptor)
-                
-                // Only preload if there are no exercises yet
-                if existingExercises.isEmpty {
-                    let defaultExercises = [
-                        "Squat",
-                        "Bench Press",
-                        "Deadlift",
-                        "Overhead Press",
-                        "Barbell Row",
-                        "Pull-ups"
-                    ]
-                    
-                    for exerciseName in defaultExercises {
-                        let exercise = ExerciseDefinition(name: exerciseName)
-                        modelContext.insert(exercise)
-                    }
-                    
-                    try modelContext.save()
-                    print("Preloaded default exercises")
-                }
-            } catch {
-                print("Failed to preload exercise data: \(error)")
-            }
-        }
     }
 }
 </file>

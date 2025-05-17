@@ -10,8 +10,8 @@ struct WorkoutInputView: View {
 
     @State private var workoutDate: Date = Date()
     @State private var sets: [TemporarySetEntry] = []
-    @State private var currentWeight: Double = 0
-    @State private var currentReps: Int = 0
+    @State private var weightString: String = ""
+    @State private var repsString: String = ""
     
     // Computed property for current total volume
     var currentTotalVolume: Double {
@@ -38,20 +38,20 @@ struct WorkoutInputView: View {
                 Section(header: Text("Add Set")) {
                     HStack {
                         Text("Weight:")
-                        TextField("kg/lbs", value: $currentWeight, formatter: NumberFormatter.decimal)
+                        TextField("kg/lbs", text: $weightString)
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
                     HStack {
                         Text("Reps:")
-                        TextField("Count", value: $currentReps, formatter: NumberFormatter.integer)
+                        TextField("Count", text: $repsString)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                     }
                     Button("Add Set") {
                         addSet()
                     }
-                    .disabled(currentWeight <= 0 || currentReps <= 0)
+                    .disabled(!isValidInput())
                 }
 
                 if !sets.isEmpty {
@@ -87,21 +87,36 @@ struct WorkoutInputView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Save Workout") {
                         saveWorkout()
-                        dismiss()
                     }
                     .disabled(sets.isEmpty)
                 }
             }
         }
     }
+    
+    private func isValidInput() -> Bool {
+        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+              let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
+              weight > 0,
+              reps > 0 else {
+            return false
+        }
+        return true
+    }
 
     private func addSet() {
-        guard currentWeight > 0, currentReps > 0 else { return }
-        let newSet = TemporarySetEntry(weight: currentWeight, reps: currentReps)
+        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+              let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
+              weight > 0,
+              reps > 0 else {
+            return
+        }
+        
+        let newSet = TemporarySetEntry(weight: weight, reps: reps)
         sets.append(newSet)
-        // Optionally reset fields after adding a set
-        // currentWeight = 0
-        // currentReps = 0
+        
+        // Keep the values for easier entry of multiple sets with similar values
+        // User can edit as needed for the next set
     }
 
     private func deleteSet(at offsets: IndexSet) {
@@ -109,25 +124,30 @@ struct WorkoutInputView: View {
     }
 
     private func saveWorkout() {
+        // Create the workout record
         let newWorkoutRecord = WorkoutRecord(date: workoutDate, exerciseDefinition: exerciseDefinition)
         modelContext.insert(newWorkoutRecord)
 
+        // Add all sets to the workout record
         for tempSet in sets {
             let setEntry = SetEntry(weight: tempSet.weight, reps: tempSet.reps, workoutRecord: newWorkoutRecord)
-            // The 1RM is already calculated in SetEntry's initializer.
-            // We can ensure it's updated if necessary, but the current SetEntry model does this.
-            // setEntry.updateOneRepMax() // This would re-calculate, initializer should be sufficient
             modelContext.insert(setEntry)
+            newWorkoutRecord.setEntries.append(setEntry)
         }
         
-        // Link the workout record to the exercise definition
-        // This relationship might be implicitly handled if ExerciseDefinition.workoutRecords is an array
-        // that SwiftData manages. If not, manual linking might be needed.
-        // exerciseDefinition.workoutRecords.append(newWorkoutRecord) // Check if this is needed or automatic
-
-        // No explicit save needed for modelContext with SwiftData's autosave,
-        // but good practice to be aware of transactionality.
-        // try? modelContext.save() // If manual save is ever preferred or needed.
+        // Explicitly add the workout record to the exercise's workoutRecords array
+        // This ensures the relationship is properly established in both directions
+        exerciseDefinition.workoutRecords.append(newWorkoutRecord)
+        
+        // Try to save the context explicitly to ensure changes are persisted immediately
+        do {
+            try modelContext.save()
+        } catch {
+            print("Error saving workout: \(error)")
+        }
+        
+        // Dismiss the view after saving
+        dismiss()
     }
 }
 

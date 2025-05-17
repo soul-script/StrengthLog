@@ -15,7 +15,13 @@ final class SetEntry: Identifiable {
         self.weight = weight
         self.reps = reps
         self.workoutRecord = workoutRecord
-        self.calculatedOneRepMax = weight * (1 + Double(reps) / 30)
+        
+        // Apply the 1RM calculation based on reps
+        if reps == 1 {
+            self.calculatedOneRepMax = weight
+        } else {
+            self.calculatedOneRepMax = weight * (1 + Double(reps) / 30.0)
+        }
     }
     
     // Update one-rep max when weight or reps change

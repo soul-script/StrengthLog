@@ -17,8 +17,16 @@ extension NumberFormatter {
     }
 }
 
-// Epley formula: 1RM = weight × (1 + reps / 30)
+// Modified Epley formula: If reps = 1, use actual weight as 1RM
+// Otherwise, use Epley formula: 1RM = weight × (1 + reps / 30)
 func calculateOneRepMax(weight: Double, reps: Int) -> Double {
     guard reps > 0 else { return weight } // Avoid division by zero or negative reps issues in formula logic
+    
+    // For 1-rep sets, use the actual weight as the 1RM
+    if reps == 1 {
+        return weight
+    }
+    
+    // For multiple reps, use the Epley formula
     return weight * (1 + Double(reps) / 30.0)
 } 
