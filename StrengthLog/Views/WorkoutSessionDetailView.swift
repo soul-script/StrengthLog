@@ -11,6 +11,25 @@ struct WorkoutSessionDetailView: View {
     @State private var editingReps: Int = 0
     @State private var isEditingDate: Bool = false
     @State private var editingDate: Date = Date()
+    
+    // States for adding new set
+    @State private var newWeight: String = ""
+    @State private var newReps: String = ""
+    
+    // Get sets sorted in chronological order (oldest first)
+    var sortedSets: [SetEntry] {
+        // First, by comparing workout record's set entry array indices
+        let setIndices = workoutRecord.setEntries.enumerated().reduce(into: [UUID: Int]()) { dict, entry in
+            dict[entry.element.id] = entry.offset
+        }
+        
+        return workoutRecord.setEntries.sorted { setA, setB in
+            guard let indexA = setIndices[setA.id], let indexB = setIndices[setB.id] else {
+                return false
+            }
+            return indexA < indexB
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -24,7 +43,7 @@ struct WorkoutSessionDetailView: View {
 
             List {
                 Section(header: Text("Sets")) {
-                    ForEach(workoutRecord.setEntries) { set in
+                    ForEach(sortedSets) { set in
                         HStack {
                             Text("\(set.weight, format: .number.precision(.fractionLength(1))) × \(set.reps) reps")
                             Spacer()
@@ -42,12 +61,37 @@ struct WorkoutSessionDetailView: View {
                         }
                     }
                     .onDelete { indexSet in
-                        for index in indexSet {
-                            let setToDelete = workoutRecord.setEntries[index]
-                            modelContext.delete(setToDelete)
-                            workoutRecord.setEntries.remove(at: index)
+                        // Convert UI indices (sorted by time) to model indices
+                        let setsToDelete = indexSet.map { sortedSets[$0] }
+                        
+                        for setToDelete in setsToDelete {
+                            if let index = workoutRecord.setEntries.firstIndex(where: { $0.id == setToDelete.id }) {
+                                modelContext.delete(setToDelete)
+                                workoutRecord.setEntries.remove(at: index)
+                            }
                         }
                     }
+                }
+                
+                Section(header: Text("Add New Set")) {
+                    HStack {
+                        Text("Weight:")
+                        TextField("kg/lbs", text: $newWeight)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    
+                    HStack {
+                        Text("Reps:")
+                        TextField("Count", text: $newReps)
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    
+                    Button("Add Set") {
+                        addNewSet()
+                    }
+                    .disabled(!isValidNewSet())
                 }
 
                 Section(header: Text("Total Volume")) {
@@ -133,6 +177,36 @@ struct WorkoutSessionDetailView: View {
                 }
             }
         }
+    }
+    
+    // Validation for new set inputs
+    private func isValidNewSet() -> Bool {
+        guard let weight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
+              let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
+              weight > 0,
+              reps > 0 else {
+            return false
+        }
+        return true
+    }
+    
+    // Add new set to the workout
+    private func addNewSet() {
+        guard let weight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
+              let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
+              weight > 0,
+              reps > 0 else {
+            return
+        }
+        
+        // Create and add the new set
+        let newSet = SetEntry(weight: weight, reps: reps, workoutRecord: workoutRecord)
+        modelContext.insert(newSet)
+        workoutRecord.setEntries.append(newSet)
+        
+        // Reset input fields
+        newWeight = ""
+        newReps = ""
     }
 }
 
