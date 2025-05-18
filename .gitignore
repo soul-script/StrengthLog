@@ -1,0 +1,147 @@
+# Xcode
+#
+# gitignore contributors: remember to update Global/Xcode.gitignore, Swift.gitignore & Objective-C.gitignore
+
+## User-specific files
+*.xcuserdatad/
+*.xcschememanagement
+*.xcscheme
+*.xcuserstate
+*.userprefs
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.moved-aside
+DerivedData/
+*.hmap
+*.ipa
+*.dsym
+*.swiftpm/
+*.xcodeproj/.DS_Store
+*.xcworkspace/.DS_Store
+
+## Build generated
+build/
+DerivedData/
+*.o
+*.lo
+*.la
+*.lai
+*.so
+*.dylib
+*.bundle
+*.a
+*.app
+*.app.dSYM
+*.framework
+*.framework.dSYM
+*.ipa
+*.xcarchive
+*.xcarchive.dSYM
+
+## Swift Package Manager
+#
+# Add this line if you want to avoid checking in source code from Swift Package Manager dependencies.
+# Packages/
+# Package.pins
+# Package.resolved
+.build/
+.swiftpm/
+
+## CocoaPods
+#
+# We recommend against adding the Pods directory to your .gitignore. However
+# you should judge for yourself, the pros and cons are mentioned at:
+# https://guides.cocoapods.org/using/using-cocoapods.html#should-i-check-the-pods-directory-into-source-control
+#
+# Pods/
+#
+# Add this line if you want to avoid checking in source code from the Xcode project
+# *.xcodeproj/project.xcworkspace
+
+## Carthage
+#
+# Add this line if you want to avoid checking in source code from Carthage dependencies.
+# Carthage/Checkouts
+Carthage/Build/
+
+## fastlane
+#
+# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
+# screenshots whenever they are needed.
+# For more information about the recommended setup visit:
+# https://docs.fastlane.tools/best-practices/source-control/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*
+fastlane/test_output/**/*
+
+## OS X / macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# SwiftData / Core Data
+# If you are using SwiftData or Core Data with an external store (like SQLite),
+# you might want to ignore the actual database file if it's not meant to be part of the repo.
+# However, often the model definition itself IS versioned.
+# *.sqlite
+# *.sqlite-shm
+# *.sqlite-wal
+
+# Environment configuration files
+# Example: .env files that might contain API keys or other sensitive information
+*.env
+.env.*
+
+# Secrets
+# Generally, do not commit secrets. Use environment variables or a secrets management system.
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# Playgrounds
+#
+# Playgrounds are often used for experimentation and might not be part of the main project.
+*.playground
+timeline.xctimeline
+
+# Localisation
+#
+# If you use a script to generate your Localizable.strings files, you might want to ignore the generated files.
+# *.lproj/*.strings
+
+# Generated code (e.g., from code generators like SwiftGen, Sourcery)
+# Adjust based on your project's specific generated file locations and names
+# Generated/
+# Source/Generated/
+
+# Test results and coverage reports
+*.xctestproducts/
+*.xcresult/
+*.profraw
+*.profdata
+*.gcno
+*.gcda
+coverage/
+test_output/
