@@ -203,7 +203,7 @@ struct DataManagementView: View {
             
             struct SetData: Codable {
                 var id: UUID
-                var weight: Double
+                var weight: Double?
                 var reps: Int
                 var calculatedOneRepMax: Double
             }
@@ -284,7 +284,7 @@ struct DataManagementView: View {
         
         struct SetData: Codable {
             var id: UUID
-            var weight: Double
+            var weight: Double?
             var reps: Int
             var calculatedOneRepMax: Double
         }
@@ -359,7 +359,7 @@ struct JSONDocument: FileDocument {
 }
 
 #Preview {
-    NavigationView {
+    NavigationStack {
         DataManagementView()
             .modelContainer(for: [
                 ExerciseDefinition.self,

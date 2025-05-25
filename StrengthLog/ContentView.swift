@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var newExerciseName: String = ""
 
     var body: some View {
-        NavigationSplitView {
+        NavigationStack {
             List {
                 Section(header: Text("Features")) {
                     NavigationLink {
@@ -78,7 +78,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $isEditingExerciseName) {
-                NavigationView {
+                NavigationStack {
                     Form {
                         Section(header: Text("Edit Exercise Name")) {
                             TextField("Exercise Name", text: $editingName)
@@ -106,7 +106,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $isAddingExercise) {
-                NavigationView {
+                NavigationStack {
                     Form {
                         Section(header: Text("New Exercise Name")) {
                             TextField("Exercise Name", text: $newExerciseName)
@@ -133,8 +133,6 @@ struct ContentView: View {
                     }
                 }
             }
-        } detail: {
-            Text("Select an exercise to view workout records")
         }
     }
 
@@ -176,7 +174,8 @@ struct ExerciseDetailView: View {
         
         for workout in exercise.workoutRecords {
             for setEntry in workout.setEntries {
-                if setEntry.calculatedOneRepMax > bestOneRM {
+                // Only consider sets with weight for 1RM calculation
+                if setEntry.weight != nil && setEntry.calculatedOneRepMax > bestOneRM {
                     bestOneRM = setEntry.calculatedOneRepMax
                     bestDate = workout.date
                     foundValidOneRM = true
@@ -263,32 +262,36 @@ struct ExerciseDetailView: View {
             } else {
                 List {
                     ForEach(exercise.workoutRecords.sorted(by: { $0.date > $1.date })) { workout in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Date: \(workout.date, format: .dateTime.day().month().year())")
-                                .font(.headline)
-                            
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text("Sets: \(workout.setEntries.count)")
-                                        .font(.subheadline)
-                                    
-                                    Text("Total Volume: \(workout.totalVolume, specifier: "%.1f")")
-                                        .font(.subheadline)
-                                }
+                        NavigationLink {
+                            WorkoutSessionDetailView(workoutRecord: workout)
+                        } label: {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Date: \(workout.date, format: .dateTime.day().month().year())")
+                                    .font(.headline)
                                 
-                                Spacer()
-                                
-                                VStack(alignment: .trailing) {
-                                    Text("Best 1RM:")
-                                        .font(.subheadline)
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text("Sets: \(workout.setEntries.count)")
+                                            .font(.subheadline)
+                                        
+                                        Text("Total Volume: \(workout.totalVolume, specifier: "%.1f")")
+                                            .font(.subheadline)
+                                    }
                                     
-                                    Text("\(workout.bestOneRepMaxInSession, specifier: "%.1f")")
-                                        .font(.subheadline.bold())
-                                        .foregroundColor(.blue)
+                                    Spacer()
+                                    
+                                    VStack(alignment: .trailing) {
+                                        Text("Best 1RM:")
+                                            .font(.subheadline)
+                                        
+                                        Text("\(workout.bestOneRepMaxInSession, specifier: "%.1f")")
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(.blue)
+                                    }
                                 }
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
                         .contextMenu {
                             Button(role: .destructive) {
                                 workoutToDelete = workout

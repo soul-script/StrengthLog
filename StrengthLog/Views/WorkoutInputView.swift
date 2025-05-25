@@ -12,35 +12,58 @@ struct WorkoutInputView: View {
     @State private var sets: [TemporarySetEntry] = []
     @State private var weightString: String = ""
     @State private var repsString: String = ""
+    @State private var isBodyweightExercise: Bool = false
     
     // Computed property for current total volume
     var currentTotalVolume: Double {
-        sets.reduce(0) { $0 + ($1.weight * Double($1.reps)) }
+        sets.reduce(0) { total, set in
+            if let weight = set.weight {
+                return total + (weight * Double(set.reps))
+            } else {
+                // For bodyweight exercises, volume is just the number of reps
+                return total + Double(set.reps)
+            }
+        }
     }
     
     // Temporary struct to hold set data before saving
     struct TemporarySetEntry: Identifiable {
         let id = UUID()
-        var weight: Double
+        var weight: Double?
         var reps: Int
         var oneRepMax: Double {
-            calculateOneRepMax(weight: weight, reps: reps)
+            if let weight = weight {
+                return calculateOneRepMax(weight: weight, reps: reps)
+            } else {
+                return 0.0 // No 1RM for bodyweight exercises
+            }
         }
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
                 Section(header: Text("Workout Details")) {
                     DatePicker("Date", selection: $workoutDate, displayedComponents: .date)
                 }
+                
+                Section(header: Text("Exercise Type")) {
+                    Toggle("Bodyweight Exercise", isOn: $isBodyweightExercise)
+                        .onChange(of: isBodyweightExercise) { _, newValue in
+                            if newValue {
+                                weightString = ""
+                            }
+                        }
+                }
 
                 Section(header: Text("Add Set")) {
-                    HStack {
-                        Text("Weight:")
-                        TextField("kg/lbs", text: $weightString)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
+                    if !isBodyweightExercise {
+                        HStack {
+                            Text("Weight:")
+                            TextField("kg/lbs", text: $weightString)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                     HStack {
                         Text("Reps:")
@@ -59,11 +82,17 @@ struct WorkoutInputView: View {
                         List {
                             ForEach(sets) { set in
                                 HStack {
-                                    Text("\(set.weight, specifier: "%.1f") kg/lbs x \(set.reps) reps")
+                                    if let weight = set.weight {
+                                        Text("\(weight, specifier: "%.1f") kg/lbs x \(set.reps) reps")
+                                    } else {
+                                        Text("\(set.reps) reps (bodyweight)")
+                                    }
                                     Spacer()
-                                    Text("1RM: \(set.oneRepMax, specifier: "%.1f")")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    if set.oneRepMax > 0 {
+                                        Text("1RM: \(set.oneRepMax, specifier: "%.1f")")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
                                 }
                             }
                             .onDelete(perform: deleteSet)
@@ -72,9 +101,20 @@ struct WorkoutInputView: View {
                 }
 
                 Section(header: Text("Total Volume")) {
-                    Text("\(currentTotalVolume, format: .number.precision(.fractionLength(1)))")
-                        .font(.title2)
-                        .padding(.vertical, 4)
+                    HStack {
+                        if sets.contains(where: { $0.weight == nil }) && sets.contains(where: { $0.weight != nil }) {
+                            // Mixed exercise types
+                            Text("\(currentTotalVolume, format: .number.precision(.fractionLength(1))) (mixed)")
+                        } else if sets.allSatisfy({ $0.weight == nil }) {
+                            // All bodyweight
+                            Text("\(currentTotalVolume, format: .number.precision(.fractionLength(0))) reps")
+                        } else {
+                            // All weighted
+                            Text("\(currentTotalVolume, format: .number.precision(.fractionLength(1)))")
+                        }
+                    }
+                    .font(.title2)
+                    .padding(.vertical, 4)
                 }
             }
             .navigationTitle("Log Workout: \(exerciseDefinition.name)")
@@ -95,21 +135,39 @@ struct WorkoutInputView: View {
     }
     
     private func isValidInput() -> Bool {
-        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
-              let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
-              weight > 0,
+        // Check reps first
+        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
               reps > 0 else {
             return false
         }
+        
+        // For bodyweight exercises, only reps need to be valid
+        if isBodyweightExercise {
+            return true
+        }
+        
+        // For weighted exercises, weight must also be valid
+        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+              weight > 0 else {
+            return false
+        }
+        
         return true
     }
 
     private func addSet() {
-        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
-              let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
-              weight > 0,
+        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
               reps > 0 else {
             return
+        }
+        
+        let weight: Double? = isBodyweightExercise ? nil : Double(weightString.trimmingCharacters(in: .whitespaces))
+        
+        // For weighted exercises, validate weight
+        if !isBodyweightExercise {
+            guard let validWeight = weight, validWeight > 0 else {
+                return
+            }
         }
         
         let newSet = TemporarySetEntry(weight: weight, reps: reps)

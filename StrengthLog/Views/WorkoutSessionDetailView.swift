@@ -15,6 +15,7 @@ struct WorkoutSessionDetailView: View {
     // States for adding new set
     @State private var newWeight: String = ""
     @State private var newReps: String = ""
+    @State private var isBodyweightExercise: Bool = false
     
     // Get sets sorted in chronological order (oldest first)
     var sortedSets: [SetEntry] {
@@ -45,17 +46,23 @@ struct WorkoutSessionDetailView: View {
                 Section(header: Text("Sets")) {
                     ForEach(sortedSets) { set in
                         HStack {
-                            Text("\(set.weight, format: .number.precision(.fractionLength(1))) × \(set.reps) reps")
+                            if let weight = set.weight {
+                                Text("\(weight, format: .number.precision(.fractionLength(1))) × \(set.reps) reps")
+                            } else {
+                                Text("\(set.reps) reps (bodyweight)")
+                            }
                             Spacer()
-                            Text("1RM: \(set.calculatedOneRepMax, format: .number.precision(.fractionLength(1)))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            if set.calculatedOneRepMax > 0 {
+                                Text("1RM: \(set.calculatedOneRepMax, format: .number.precision(.fractionLength(1)))")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         .padding(.vertical, 4)
                         .contentShape(Rectangle()) // Make the entire row tappable
                         .onTapGesture {
                             selectedSet = set
-                            editingWeight = set.weight
+                            editingWeight = set.weight ?? 0
                             editingReps = set.reps
                             isEditingSet = true
                         }
@@ -74,11 +81,20 @@ struct WorkoutSessionDetailView: View {
                 }
                 
                 Section(header: Text("Add New Set")) {
-                    HStack {
-                        Text("Weight:")
-                        TextField("kg/lbs", text: $newWeight)
-                            .keyboardType(.decimalPad)
-                            .multilineTextAlignment(.trailing)
+                    Toggle("Bodyweight Exercise", isOn: $isBodyweightExercise)
+                        .onChange(of: isBodyweightExercise) { _, newValue in
+                            if newValue {
+                                newWeight = ""
+                            }
+                        }
+                    
+                    if !isBodyweightExercise {
+                        HStack {
+                            Text("Weight:")
+                            TextField("kg/lbs", text: $newWeight)
+                                .keyboardType(.decimalPad)
+                                .multilineTextAlignment(.trailing)
+                        }
                     }
                     
                     HStack {
@@ -95,9 +111,23 @@ struct WorkoutSessionDetailView: View {
                 }
 
                 Section(header: Text("Total Volume")) {
-                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1)))")
-                        .font(.title2)
-                        .padding(.vertical, 4)
+                    HStack {
+                        let hasWeightedSets = workoutRecord.setEntries.contains { $0.weight != nil }
+                        let hasBodyweightSets = workoutRecord.setEntries.contains { $0.weight == nil }
+                        
+                        if hasWeightedSets && hasBodyweightSets {
+                            // Mixed exercise types
+                            Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1))) (mixed)")
+                        } else if hasBodyweightSets && !hasWeightedSets {
+                            // All bodyweight
+                            Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(0))) reps")
+                        } else {
+                            // All weighted
+                            Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1)))")
+                        }
+                    }
+                    .font(.title2)
+                    .padding(.vertical, 4)
                 }
             }
         }
@@ -114,14 +144,27 @@ struct WorkoutSessionDetailView: View {
             }
         }
         .sheet(isPresented: $isEditingSet) {
-            NavigationView {
+            NavigationStack {
                 Form {
                     Section(header: Text("Edit Set")) {
-                        HStack {
-                            Text("Weight:")
-                            TextField("kg/lbs", value: $editingWeight, formatter: NumberFormatter.decimal)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
+                        Toggle("Bodyweight Exercise", isOn: Binding(
+                            get: { selectedSet?.weight == nil },
+                            set: { isBodyweight in
+                                if isBodyweight {
+                                    editingWeight = 0
+                                } else if editingWeight == 0 {
+                                    editingWeight = 1.0
+                                }
+                            }
+                        ))
+                        
+                        if selectedSet?.weight != nil || editingWeight > 0 {
+                            HStack {
+                                Text("Weight:")
+                                TextField("kg/lbs", value: $editingWeight, formatter: NumberFormatter.decimal)
+                                    .keyboardType(.decimalPad)
+                                    .multilineTextAlignment(.trailing)
+                            }
                         }
                         HStack {
                             Text("Reps:")
@@ -142,19 +185,20 @@ struct WorkoutSessionDetailView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Save") {
                             if let set = selectedSet {
-                                set.weight = editingWeight
+                                // If weight is 0 or toggle shows bodyweight, set weight to nil
+                                set.weight = (editingWeight <= 0) ? nil : editingWeight
                                 set.reps = editingReps
                                 set.updateOneRepMax()
                             }
                             isEditingSet = false
                         }
-                        .disabled(editingWeight <= 0 || editingReps <= 0)
+                        .disabled(editingReps <= 0)
                     }
                 }
             }
         }
         .sheet(isPresented: $isEditingDate) {
-            NavigationView {
+            NavigationStack {
                 Form {
                     Section(header: Text("Edit Workout Date")) {
                         DatePicker("Date", selection: $editingDate, displayedComponents: .date)
@@ -181,22 +225,40 @@ struct WorkoutSessionDetailView: View {
     
     // Validation for new set inputs
     private func isValidNewSet() -> Bool {
-        guard let weight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
-              let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
-              weight > 0,
+        // Check reps first
+        guard let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
               reps > 0 else {
             return false
         }
+        
+        // For bodyweight exercises, only reps need to be valid
+        if isBodyweightExercise {
+            return true
+        }
+        
+        // For weighted exercises, weight must also be valid
+        guard let weight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
+              weight > 0 else {
+            return false
+        }
+        
         return true
     }
     
     // Add new set to the workout
     private func addNewSet() {
-        guard let weight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
-              let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
-              weight > 0,
+        guard let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
               reps > 0 else {
             return
+        }
+        
+        let weight: Double? = isBodyweightExercise ? nil : Double(newWeight.trimmingCharacters(in: .whitespaces))
+        
+        // For weighted exercises, validate weight
+        if !isBodyweightExercise {
+            guard let validWeight = weight, validWeight > 0 else {
+                return
+            }
         }
         
         // Create and add the new set

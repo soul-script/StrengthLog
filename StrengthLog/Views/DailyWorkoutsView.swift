@@ -84,7 +84,7 @@ struct DailyWorkoutsView: View {
     morningWorkout.setEntries = [set1, set2]
     eveningWorkout.setEntries = [set3]
     
-    return NavigationView {
+    return NavigationStack {
         DailyWorkoutsView(date: today)
     }
     .modelContainer(container)

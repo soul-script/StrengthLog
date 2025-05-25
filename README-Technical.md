@@ -1,18 +1,18 @@
 # StrengthLog: Technical Documentation
 
-**Version:** 2.0 (Post-Phase 8 & Additional Features)
-**Date:** May 18, 2025
+**Version:** 2.1 (Post-Bodyweight Exercise Support & Navigation Improvements)
+**Date:** December 2024
 **Document Purpose:** This document provides a comprehensive technical overview of the StrengthLog iOS application, intended for development teams, new developers onboarding to the project, or for future maintenance and enhancement purposes.
 
 ## 1. Introduction
 
 ### 1.1. Project Overview
 
-StrengthLog is an iOS application designed for users to track their strength training workouts. It allows users to define exercises, log workout sessions (including sets, weight, and repetitions), calculate estimated 1 Rep Max (1RM), visualize progress over time through charts, and manage their workout data via import/export functionalities. The app features a detailed workout history with daily grouping and filtering capabilities.
+StrengthLog is an iOS application designed for users to track their strength training workouts. It allows users to define exercises, log workout sessions (including sets with weight and repetitions for weighted exercises, or reps-only for bodyweight exercises), calculate estimated 1 Rep Max (1RM) for weighted exercises, visualize progress over time through charts, and manage their workout data via import/export functionalities. The app features a detailed workout history with daily grouping, filtering capabilities, and seamless navigation throughout the app.
 
 ### 1.2. Purpose
 
-The primary goal of StrengthLog is to offer a simple, user-friendly, and focused tool for strength training enthusiasts to monitor their performance, track progress, and stay motivated. It emphasizes core mechanics like logging, 1RM estimation, volume tracking, and an intuitive way to review past workouts.
+The primary goal of StrengthLog is to offer a simple, user-friendly, and focused tool for strength training enthusiasts to monitor their performance, track progress, and stay motivated. It emphasizes core mechanics like logging (both weighted and bodyweight exercises), 1RM estimation for weighted exercises, volume tracking with smart calculation methods, and an intuitive way to review past workouts with proper navigation flow.
 
 ### 1.3. Technology Stack
 
@@ -49,7 +49,7 @@ All data models are located in the `Models/` directory.
 
 ### 3.1. `ExerciseDefinition.swift`
 
-- **Purpose:** Represents a specific type of exercise (e.g., "Squat", "Bench Press").
+- **Purpose:** Represents a specific type of exercise (e.g., "Squat", "Bench Press", "Pull-ups").
 - **Fields:**
   - `id: UUID` (Primary key, unique)
   - `name: String` (Name of the exercise)
@@ -68,8 +68,8 @@ All data models are located in the `Models/` directory.
   - `exerciseDefinition: ExerciseDefinition?` (Many-to-One with `ExerciseDefinition`). Configured with `deleteRule: .nullify`.
   - `setEntries: [SetEntry]` (One-to-Many with `SetEntry`). Configured with `deleteRule: .cascade`. The order in this array generally reflects the order of set creation.
 - **Computed Properties:**
-  - `totalVolume: Double`: Calculates the total volume for the session ($\sum (\text{weight} \times \text{reps})$ across all `setEntries`).
-  - `bestOneRepMaxInSession: Double` (extension): Calculates the highest `calculatedOneRepMax` from all its `setEntries`. Returns `0.0` if no sets are present.
+  - `totalVolume: Double`: Calculates the total volume for the session. For weighted sets: $\sum (\text{weight} \times \text{reps})$. For bodyweight sets: $\sum \text{reps}$. Mixed sessions combine both calculations.
+  - `bestOneRepMaxInSession: Double` (extension): Calculates the highest `calculatedOneRepMax` from all weighted `setEntries`. Returns `0.0` if no weighted sets are present.
 - **Initialization:** `init(date: Date = Date(), exerciseDefinition: ExerciseDefinition? = nil)`
 
 ### 3.3. `SetEntry.swift`
@@ -77,15 +77,16 @@ All data models are located in the `Models/` directory.
 - **Purpose:** Represents a single set performed within a `WorkoutRecord`.
 - **Fields:**
   - `id: UUID` (Primary key, unique)
-  - `weight: Double` (Weight lifted for the set)
+  - `weight: Double?` (Weight lifted for the set - optional to support bodyweight exercises)
   - `reps: Int` (Number of repetitions performed)
-  - `calculatedOneRepMax: Double` (Estimated 1 Rep Max for this set)
+  - `calculatedOneRepMax: Double` (Estimated 1 Rep Max for this set - 0.0 for bodyweight exercises)
 - **Relationships:**
   - `workoutRecord: WorkoutRecord?` (Many-to-One with `WorkoutRecord`). Configured with `deleteRule: .nullify`.
-- **Initialization:** `init(weight: Double, reps: Int, workoutRecord: WorkoutRecord? = nil)`
-  - Calculates `calculatedOneRepMax` upon initialization using the modified Epley formula.
+- **Initialization:** `init(weight: Double? = nil, reps: Int, workoutRecord: WorkoutRecord? = nil)`
+  - Calculates `calculatedOneRepMax` upon initialization using the modified Epley formula for weighted exercises.
+  - Sets `calculatedOneRepMax` to 0.0 for bodyweight exercises (when weight is nil).
 - **Methods:**
-  - `updateOneRepMax()`: Recalculates `calculatedOneRepMax` using the global `calculateOneRepMax` function.
+  - `updateOneRepMax()`: Recalculates `calculatedOneRepMax` using the global `calculateOneRepMax` function for weighted exercises, or sets to 0.0 for bodyweight exercises.
 
 ### 3.4. `Models/Extensions.swift`
 
@@ -113,27 +114,32 @@ All data models are located in the `Models/` directory.
 ### 5.1. `ContentView.swift` (Main Navigation & Exercise Management)
 
 - **Purpose:** Main navigation screen, lists exercises, and provides links to features.
+- **Navigation:** Uses `NavigationStack` for proper back button behavior throughout the app.
 - **Functionality:**
-  - `NavigationSplitView` layout.
   - Links to `WorkoutHistoryListView`, `ProgressChartsView`, `DataManagementView`.
   - Lists `ExerciseDefinition`s, allowing addition (with name prompt), editing (name via context menu), and deletion (swipe-to-delete).
-  - Each exercise navigates to `ExerciseDetailView`.
+  - Each exercise navigates to `ExerciseDetailView` with NavigationLink support for workout sessions.
 
 ### 5.2. `ExerciseDetailView.swift` (struct within `ContentView.swift`)
 
 - **Purpose:** Displays details for a selected `ExerciseDefinition`, including personal records and a list of its workouts.
 - **Functionality:**
-  - "Personal Records" card for best 1RM and best volume.
-  - Lists `WorkoutRecord`s (sorted by date descending), allowing deletion via context menu/swipe.
+  - "Personal Records" card for best 1RM (weighted exercises only) and best volume.
+  - Lists `WorkoutRecord`s (sorted by date descending) with NavigationLinks to `WorkoutSessionDetailView`.
+  - Allows deletion via context menu/swipe.
   - "Add Workout" button presents `WorkoutInputView`.
 
 ### 5.3. `WorkoutInputView.swift`
 
 - **Purpose:** Modal sheet for logging a new workout session for an exercise.
+- **Navigation:** Uses `NavigationStack` instead of `NavigationView` for proper modal behavior.
 - **Functionality:**
   - `DatePicker` for workout date.
-  - Input fields for weight and reps to add `TemporarySetEntry`s.
-  - Lists temporary sets (supports deletion) and displays current total volume.
+  - **Bodyweight Toggle:** Option to mark exercise as bodyweight (hides weight input).
+  - **Conditional Input Fields:** Weight input shown only for weighted exercises.
+  - **Enhanced Validation:** Validates reps for all exercises, weight only for weighted exercises.
+  - **Smart Display:** Lists temporary sets with appropriate labeling (bodyweight vs. weighted).
+  - **Volume Calculation:** Displays total volume with context-aware formatting (reps for bodyweight, weight×reps for weighted, "mixed" for combined).
   - Saves the `WorkoutRecord` with its `SetEntry`s. Input fields for weight/reps are not cleared after adding a set to facilitate easier subsequent entries.
 
 ### 5.4. `WorkoutHistoryListView.swift`
@@ -167,22 +173,26 @@ All data models are located in the `Models/` directory.
 ### 5.6. `WorkoutSessionDetailView.swift`
 
 - **Purpose:** Shows full details of a selected `WorkoutRecord`, allowing users to edit/delete individual sets, edit the workout date, and add new sets.
+- **Navigation:** Uses `NavigationStack` for all modal sheets to ensure proper back button behavior.
 - **Key State & Data:**
   - `var workoutRecord: WorkoutRecord`: The workout session being detailed.
   - States for editing an existing set (`selectedSet`, `isEditingSet`, `editingWeight`, `editingReps`).
   - States for editing the workout date (`isEditingDate`, `editingDate`).
-  - States for adding a new set (`newWeight`, `newReps`).
+  - States for adding a new set (`newWeight`, `newReps`, `isBodyweightExercise`).
 - **Functionality:**
   - Displays exercise name and workout date.
   - **Sets List:**
     - `sortedSets: [SetEntry]`: A computed property that sorts `workoutRecord.setEntries` based on their original order in the array (reflecting creation order, oldest first).
-    - Lists sets using `sortedSets`. Each row shows weight, reps, and 1RM.
-    - **Tap to Edit Set:** Presents a sheet for modifying weight/reps of an existing set. 1RM is updated.
+    - **Enhanced Display:** Shows weight and reps for weighted sets, "reps (bodyweight)" for bodyweight sets.
+    - **1RM Display:** Shows 1RM only for weighted sets.
+    - **Tap to Edit Set:** Presents a sheet for modifying weight/reps of an existing set, with bodyweight toggle support.
     - **Swipe to Delete Set:** Allows deleting individual `SetEntry`s.
   - **Add New Set Section:**
-    - `TextField`s for weight and reps for a new set.
+    - **Bodyweight Toggle:** Option to add bodyweight sets.
+    - **Conditional Fields:** Weight input shown only for weighted sets.
+    - **Enhanced Validation:** Validates based on exercise type.
     - "Add Set" button calls `addNewSet()`, which creates a new `SetEntry`, links it to the `workoutRecord`, and saves it. Input fields are cleared after adding.
-  - **Total Volume Section:** Displays `workoutRecord.totalVolume`.
+  - **Smart Volume Display:** Adapts to exercise types (mixed, bodyweight-only, or weighted-only).
   - **Toolbar:** "Edit Date" button presents a sheet to modify `workoutRecord.date`.
 - **Navigation Title:** "Session Details".
 
@@ -191,15 +201,17 @@ All data models are located in the `Models/` directory.
 - **Purpose:** Provides visualization of 1RM and training volume trends.
 - **Functionality:**
   - Pickers for exercise, chart type (1RM/Volume), and time range (1M, 3M, 6M, 1Y, All Time).
+  - **Enhanced 1RM Charts:** Only displays data for weighted exercises (filters out bodyweight sets).
   - Interactive SwiftUI `Chart` displaying trends.
   - Handles empty states.
 
 ### 5.8. `Views/DataManagementView.swift`
 
 - **Purpose:** Allows JSON export/import of all data and clearing all data.
-- **Functionality:**
-  - `.fileExporter` for JSON export.
-  - `.fileImporter` for JSON import (replaces existing data).
+- **Enhanced Functionality:**
+  - **Updated Export/Import:** Full support for optional weight in JSON structures.
+  - `.fileExporter` for JSON export with bodyweight exercise compatibility.
+  - `.fileImporter` for JSON import (replaces existing data) with backward compatibility.
   - Confirmation alert for clearing all data.
   - Displays database statistics.
 
@@ -213,35 +225,39 @@ All data models are located in the `Models/` directory.
 
 - Adding, editing names, and deleting exercises. Deletion cascades.
 
-### 6.2. Workout Logging
+### 6.2. Enhanced Workout Logging
 
-- **Session Creation:** Log new workouts via `WorkoutInputView`.
-- **Set Entry:** Log date, multiple sets with weight and reps.
-- **1RM Calculation:** Automatic 1RM calculation per set using Epley formula (handles 1-rep actual).
+- **Session Creation:** Log new workouts via `WorkoutInputView` with bodyweight exercise support.
+- **Flexible Set Entry:** Log date, multiple sets with weight and reps (weighted exercises) or reps only (bodyweight exercises).
+- **Mixed Workouts:** Support for combining weighted and bodyweight sets in the same session.
+- **Smart 1RM Calculation:** Automatic 1RM calculation per weighted set using Epley formula. Bodyweight sets show 0.0 for 1RM.
 
-### 6.3. Workout History Review
+### 6.3. Improved Workout History Review
 
 - **Daily Grouping:** `WorkoutHistoryListView` groups workouts by day.
 - **Filtering:** Filter history by Week (default), Month, Year, or All Time.
 - **Period Navigation:** Navigate to previous/next week, month, or year.
+- **Seamless Navigation:** Fixed back button behavior throughout the navigation flow.
 - **Individual Session View:** Drill down from daily summary to `DailyWorkoutsView` (listing sessions for that day) and then to `WorkoutSessionDetailView` (specifics of one session).
 
 ### 6.4. Progress Tracking
 
 - Interactive 1RM and Volume trend charts in `ProgressChartsView` with exercise and time range filters.
+- **Enhanced 1RM Charts:** Only considers weighted exercises for 1RM calculations and display.
 
-### 6.5. Data Editing
+### 6.5. Enhanced Data Editing
 
-- **Set Editing:** Edit weight/reps of existing sets in `WorkoutSessionDetailView`. 1RM updates.
+- **Set Editing:** Edit weight/reps of existing sets in `WorkoutSessionDetailView`. Convert between weighted and bodyweight. 1RM updates automatically.
 - **Set Deletion:** Delete individual sets in `WorkoutSessionDetailView`.
-- **Adding Sets In-Session:** Add new sets directly within `WorkoutSessionDetailView`.
+- **Flexible Set Addition:** Add new weighted or bodyweight sets directly within `WorkoutSessionDetailView`.
 - **Set Order:** Sets in `WorkoutSessionDetailView` are displayed chronologically (oldest first, last added at the bottom).
 - **Workout Date Editing:** Edit the date of a workout session.
 - **Workout Deletion:** Delete entire workout sessions from `ExerciseDetailView`.
 
-### 6.6. Data Management
+### 6.6. Enhanced Data Management
 
-- JSON export, JSON import (replaces current data), and clear all data functionalities.
+- **Updated Export/Import:** JSON export and import with full bodyweight exercise support and backward compatibility.
+- **Clear All Data:** Functionality with confirmation dialogs.
 
 ## 7. Configuration
 
@@ -253,37 +269,44 @@ All data models are located in the `Models/` directory.
 - SwiftData lazy loading and `@Query` efficiency.
 - Explicit `modelContext.save()` calls for predictable persistence.
 - UI responsiveness through SwiftUI's declarative updates.
+- **Enhanced Navigation:** `NavigationStack` usage throughout for better performance and user experience.
 - JSON operations are synchronous; consider backgrounding for extremely large datasets if needed.
 
 ## 9. Inter-Component Interactions
 
 - **`StrengthLogApp` -> `ContentView`**: Environment setup.
 - **`ContentView` -> Feature Views**: Navigation to `WorkoutHistoryListView`, `ProgressChartsView`, `DataManagementView`, `ExerciseDetailView`.
-- **`WorkoutHistoryListView` -> `DailyWorkoutsView` -> `WorkoutSessionDetailView`**: Navigation flow for exploring workout history.
+- **Enhanced Navigation Flow:** `WorkoutHistoryListView` -> `DailyWorkoutsView` -> `WorkoutSessionDetailView` with proper back button behavior.
 - **`ExerciseDetailView` -> `WorkoutInputView`**: Sheet presentation for new workout logging.
-- **`WorkoutSessionDetailView`**: Manages its own sheets for editing set/date.
+- **`ExerciseDetailView` -> `WorkoutSessionDetailView`**: Direct navigation to workout details.
+- **`WorkoutSessionDetailView`**: Manages its own sheets for editing set/date with `NavigationStack`.
 - Views interact with `@Environment(\.modelContext)` and `@Query` for data operations and reactive UI.
 
 ## 10. Real-World Use Cases
 
 1.  **Adding a New Exercise:** (As before)
-2.  **Logging a Workout:** (As before)
-3.  **Reviewing Workout History (New Flow):**
+2.  **Logging a Weighted Workout:** (As before)
+3.  **Logging a Bodyweight Workout:**
+    - User taps "Add Workout" for "Pull-ups" exercise.
+    - In `WorkoutInputView`, user toggles "Bodyweight Exercise" to ON.
+    - Weight input field disappears. User enters reps (e.g., 12) and taps "Add Set".
+    - Set appears as "12 reps (bodyweight)" with no 1RM displayed.
+    - User adds more sets, saves workout. Volume shows total reps.
+4.  **Logging a Mixed Workout:**
+    - User logs "Chest Workout" with both weighted bench press sets and bodyweight push-up sets.
+    - Volume displays as "mixed" combining weight×reps + total bodyweight reps.
+5.  **Reviewing Workout History (Enhanced Flow):**
     - User taps "Workout History" on `ContentView`.
-    - `WorkoutHistoryListView` shows workouts grouped by day, filtered by the current week. User sees "May 18, 2025 - 2 Workouts".
+    - `WorkoutHistoryListView` shows workouts grouped by day, filtered by the current week.
     - User taps "May 18, 2025". Navigates to `DailyWorkoutsView`.
-    - `DailyWorkoutsView` lists the two sessions from May 18. User taps the "Deadlift" session.
-    - Navigates to `WorkoutSessionDetailView` for that Deadlift session.
-4.  **Filtering History:**
-    - In `WorkoutHistoryListView`, user changes filter to "Month". List updates to show daily summaries for the current month.
-    - User taps "Previous" to see daily summaries for the last month.
-5.  **Tracking Progress:** (As before)
-6.  **Correcting a Mistake & Adding a Forgotten Set:**
-    - User navigates to a past workout in `WorkoutSessionDetailView`. Sets are listed with the first set at the top.
-    - Realizes Set 2 was 115kg, not 110kg. Taps Set 2. Edits and saves.
-    - Realizes they forgot a final set. Uses the "Add New Set" section in `WorkoutSessionDetailView` to add "Set 3: 100kg, 8 reps". The new set appears at the bottom of the list.
-7.  **Backing Up Data:** (As before)
-8.  **Restoring Data:** (As before)
+    - User taps a workout session. Navigates to `WorkoutSessionDetailView`.
+    - **Back button works correctly:** Returns to `DailyWorkoutsView`, then to `WorkoutHistoryListView`, then to `ContentView`.
+6.  **Converting Set Types:**
+    - In `WorkoutSessionDetailView`, user taps a weighted set to edit.
+    - User toggles "Bodyweight Exercise" to convert to bodyweight set.
+    - Weight is removed, 1RM becomes 0.0, set displays as bodyweight.
+7.  **Tracking Progress:** Enhanced charts show 1RM trends only for weighted exercises.
+8.  **Data Management:** Export/import maintains full compatibility with both weighted and bodyweight exercises.
 
 ## 11. Build & Deployment Notes
 
@@ -293,7 +316,28 @@ All data models are located in the `Models/` directory.
 - **App Icon:** Custom `AppIcon.swift` for design. Rasterized assets needed for `Assets.xcassets`.
 - **Deployment:** Standard App Store submission.
 
-## 12. Future Considerations / Potential Enhancements
+## 12. Recent Updates (Version 2.1)
+
+### 12.1. Bodyweight Exercise Support
+
+- **Data Model Changes:** Made `SetEntry.weight` optional to support bodyweight exercises.
+- **UI Enhancements:** Added bodyweight toggles throughout the app.
+- **Smart Calculations:** Volume and 1RM calculations adapt to exercise type.
+- **Export/Import:** Updated JSON structures to handle optional weight.
+
+### 12.2. Navigation Improvements
+
+- **Architecture Change:** Replaced `NavigationSplitView` with `NavigationStack` in main ContentView.
+- **Modal Sheets:** Updated all modal presentations to use `NavigationStack`.
+- **Back Button Fix:** Resolved issue where back button would skip to main page instead of previous screen.
+- **Enhanced UX:** Added NavigationLinks to workout rows in ExerciseDetailView.
+
+### 12.3. Backward Compatibility
+
+- **Data Migration:** Existing data with weight values continues to work seamlessly.
+- **Import Compatibility:** Can import both old (weight required) and new (weight optional) JSON formats.
+
+## 13. Future Considerations / Potential Enhancements
 
 - **Cloud Sync (iCloud)**
 - **More Advanced Charting & Analytics**
@@ -303,3 +347,5 @@ All data models are located in the `Models/` directory.
 - **WatchOS App**
 - **Localization**
 - **Accessibility Enhancements**
+- **Exercise Categories** (Push, Pull, Legs, etc.)
+- **Bodyweight Progression Tracking** (weighted pull-ups, progression to harder variations)

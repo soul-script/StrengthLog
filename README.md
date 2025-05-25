@@ -8,31 +8,36 @@
   - Define and manage a custom list of your exercises.
   - Easily add new exercises as your routine evolves.
   - Edit exercise names or delete them if no longer needed.
-- **Workout Logging:**
+- **Flexible Workout Logging:**
   - Log workout sessions for each exercise, including the date.
-  - Record multiple sets with specific weight and repetitions.
-  - Automatic calculation of estimated 1 Rep Max (1RM) for each set using the Epley formula (with special handling for 1-rep sets).
-  - View total volume for each workout session.
+  - **Weighted Exercises:** Record multiple sets with specific weight and repetitions.
+  - **Bodyweight Exercises:** Log bodyweight exercises (pull-ups, push-ups, dips, etc.) with reps only - no weight required.
+  - **Mixed Workouts:** Combine both weighted and bodyweight sets within the same workout session.
+  - Automatic calculation of estimated 1 Rep Max (1RM) for weighted sets using the Epley formula (with special handling for 1-rep sets).
+  - Smart volume calculation: weight × reps for weighted exercises, total reps for bodyweight exercises.
 - **Comprehensive Workout History:**
   - View a detailed history of all your workout sessions.
   - **Daily Grouping:** Workouts are grouped by day for a clear overview. Tap a day to see all sessions from that day.
   - **Flexible Filters:** Filter your history by Week (default), Month, Year, or All Time.
   - **Period Navigation:** Easily navigate to the previous or next period (week, month, year) when filters are active.
+  - **Seamless Navigation:** Improved back button behavior ensures you always return to the previous screen.
 - **In-Depth Session Details:**
   - Drill down into individual workout sessions to see all logged sets.
   - Sets are displayed chronologically (oldest first, as they were performed).
-  - Edit the weight or reps of any existing set.
+  - Clear labeling for bodyweight sets vs. weighted sets.
+  - Edit the weight or reps of any existing set, or convert between weighted and bodyweight.
   - Delete individual sets if logged incorrectly.
-  - **Add New Sets:** Add more sets directly to a past or current session.
+  - **Add New Sets:** Add more sets directly to a past or current session (weighted or bodyweight).
   - Modify the date of a workout session.
+  - Smart volume display adapts to exercise type (mixed, bodyweight-only, or weighted-only).
 - **Progress Visualization:**
   - Track your progress with interactive charts.
   - Select specific exercises to visualize trends.
-  - Switch between charts for Estimated 1RM and Training Volume.
+  - Switch between charts for Estimated 1RM (weighted exercises only) and Training Volume.
   - Filter chart data by various time ranges (1 Month, 3 Months, 6 Months, 1 Year, All Time).
   - Tap on data points in the chart to see specific values and dates.
 - **Data Management:**
-  - **Export Data:** Securely back up all your workout data (exercises, workouts, and sets) to a JSON file.
+  - **Export Data:** Securely back up all your workout data (exercises, workouts, and sets) to a JSON file with full bodyweight exercise support.
   - **Import Data:** Restore your data from a previously exported JSON file. (Note: Importing replaces existing data).
   - **Clear All Data:** Option to reset all app data with confirmation.
   - View database statistics (counts of exercises, workouts, sets).
@@ -71,7 +76,13 @@
 
 ## 📈 Project Status
 
-StrengthLog is currently feature-complete based on its initial and expanded scope, including robust workout logging, history tracking, progress visualization, and data management.
+StrengthLog is currently feature-complete based on its initial and expanded scope, including robust workout logging with bodyweight exercise support, history tracking with improved navigation, progress visualization, and comprehensive data management.
+
+Recent updates include:
+
+- **Bodyweight Exercise Support:** Full support for logging exercises without weight (pull-ups, push-ups, etc.)
+- **Improved Navigation:** Fixed back button behavior throughout the app for consistent user experience
+- **Enhanced Data Models:** Updated to handle optional weight while maintaining backward compatibility
 
 Future considerations for development can be found in the more detailed [Technical Documentation](README-Technical.md).
 

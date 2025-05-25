@@ -16,7 +16,14 @@ final class WorkoutRecord {
     }
     
     var totalVolume: Double {
-        setEntries.reduce(0) { $0 + $1.weight * Double($1.reps) }
+        setEntries.reduce(0) { total, setEntry in
+            if let weight = setEntry.weight {
+                return total + weight * Double(setEntry.reps)
+            } else {
+                // For bodyweight exercises, volume is just the number of reps
+                return total + Double(setEntry.reps)
+            }
+        }
     }
 }
 
@@ -24,6 +31,9 @@ final class WorkoutRecord {
 extension WorkoutRecord {
     var bestOneRepMaxInSession: Double {
         guard !setEntries.isEmpty else { return 0.0 }
-        return setEntries.reduce(0.0) { max($0, $1.calculatedOneRepMax) }
+        // Only consider sets with weight for 1RM calculation
+        let weightedSets = setEntries.filter { $0.weight != nil }
+        guard !weightedSets.isEmpty else { return 0.0 }
+        return weightedSets.reduce(0.0) { max($0, $1.calculatedOneRepMax) }
     }
 } 

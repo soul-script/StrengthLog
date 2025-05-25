@@ -294,7 +294,7 @@ extension Calendar {
         set.workoutRecord?.setEntries.append(set)
     }
     
-    return NavigationView {
+    return NavigationStack {
         WorkoutHistoryListView()
     }
     .modelContainer(container)
