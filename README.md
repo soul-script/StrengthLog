@@ -9,12 +9,13 @@
   - Easily add new exercises as your routine evolves.
   - Edit exercise names or delete them if no longer needed.
 - **Flexible Workout Logging:**
-  - Log workout sessions for each exercise, including the date.
+  - Log workout sessions for each exercise, including the date (automatically normalized to midnight for consistency).
   - **Weighted Exercises:** Record multiple sets with specific weight and repetitions.
   - **Bodyweight Exercises:** Log bodyweight exercises (pull-ups, push-ups, dips, etc.) with reps only - no weight required.
   - **Mixed Workouts:** Combine both weighted and bodyweight sets within the same workout session.
   - Automatic calculation of estimated 1 Rep Max (1RM) for weighted sets using the Epley formula (with special handling for 1-rep sets).
   - Smart volume calculation: weight × reps for weighted exercises, total reps for bodyweight exercises.
+  - **Consistent Timestamps:** All workout dates are stored at midnight (00:00:00.000) for better organization and time zone consistency.
 - **Comprehensive Workout History:**
   - View a detailed history of all your workout sessions.
   - **Daily Grouping:** Workouts are grouped by day for a clear overview. Tap a day to see all sessions from that day.
@@ -80,9 +81,10 @@ StrengthLog is currently feature-complete based on its initial and expanded scop
 
 Recent updates include:
 
-- **Bodyweight Exercise Support:** Full support for logging exercises without weight (pull-ups, push-ups, etc.)
-- **Improved Navigation:** Fixed back button behavior throughout the app for consistent user experience
-- **Enhanced Data Models:** Updated to handle optional weight while maintaining backward compatibility
+- **Timestamp Normalization (v2.2):** All workout dates and exercise creation times are now consistently stored and displayed at midnight (00:00:00.000) for better data organization and consistency across time zones
+- **Bodyweight Exercise Support (v2.1):** Full support for logging exercises without weight (pull-ups, push-ups, etc.)
+- **Improved Navigation (v2.1):** Fixed back button behavior throughout the app for consistent user experience
+- **Enhanced Data Models (v2.1):** Updated to handle optional weight while maintaining backward compatibility
 
 Future considerations for development can be found in the more detailed [Technical Documentation](README-Technical.md).
 

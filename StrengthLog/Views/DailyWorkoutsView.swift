@@ -29,7 +29,7 @@ struct DailyWorkoutsView: View {
                         VStack(alignment: .leading) {
                             Text(record.exerciseDefinition?.name ?? "Unknown Exercise")
                                 .font(.headline)
-                            Text(record.date, format: .dateTime.hour().minute())
+                            Text(record.date.midnight, format: .dateTime.hour().minute())
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                         }

@@ -214,7 +214,7 @@ struct WorkoutSessionDetailView: View {
                     }
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Save") {
-                            workoutRecord.date = editingDate
+                            workoutRecord.date = editingDate.midnight
                             isEditingDate = false
                         }
                     }

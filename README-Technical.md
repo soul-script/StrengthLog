@@ -56,7 +56,7 @@ All data models are located in the `Models/` directory.
   - `dateAdded: Date` (Date the exercise was added)
 - **Relationships:**
   - `workoutRecords: [WorkoutRecord]` (One-to-Many with `WorkoutRecord`). Configured with `deleteRule: .cascade`.
-- **Initialization:** `init(name: String, dateAdded: Date = Date())`
+- **Initialization:** `init(name: String, dateAdded: Date = Date.todayAtMidnight)` - All exercise creation timestamps are normalized to midnight.
 
 ### 3.2. `WorkoutRecord.swift`
 
@@ -70,7 +70,7 @@ All data models are located in the `Models/` directory.
 - **Computed Properties:**
   - `totalVolume: Double`: Calculates the total volume for the session. For weighted sets: $\sum (\text{weight} \times \text{reps})$. For bodyweight sets: $\sum \text{reps}$. Mixed sessions combine both calculations.
   - `bestOneRepMaxInSession: Double` (extension): Calculates the highest `calculatedOneRepMax` from all weighted `setEntries`. Returns `0.0` if no weighted sets are present.
-- **Initialization:** `init(date: Date = Date(), exerciseDefinition: ExerciseDefinition? = nil)`
+- **Initialization:** `init(date: Date = Date.todayAtMidnight, exerciseDefinition: ExerciseDefinition? = nil)` - All workout session timestamps are normalized to midnight.
 
 ### 3.3. `SetEntry.swift`
 
@@ -95,6 +95,9 @@ All data models are located in the `Models/` directory.
   - `extension NumberFormatter`: Static properties `decimal` and `integer`.
   - `func calculateOneRepMax(weight: Double, reps: Int) -> Double`: Global Epley formula (handles 1-rep case).
   - `extension Calendar`: Helper functions `weekDateRange`, `monthDateRange`, `yearDateRange` for calculating date intervals.
+  - `extension Date`: Date utilities for consistent timestamp handling:
+    - `midnight`: Property that returns a new Date set to midnight (00:00:00.000) of the same day.
+    - `todayAtMidnight`: Static property that creates a new Date set to midnight of today.
 
 ### 3.5. Relationships and Cascade Rules
 
@@ -316,7 +319,17 @@ All data models are located in the `Models/` directory.
 - **App Icon:** Custom `AppIcon.swift` for design. Rasterized assets needed for `Assets.xcassets`.
 - **Deployment:** Standard App Store submission.
 
-## 12. Recent Updates (Version 2.1)
+## 12. Recent Updates (Version 2.2)
+
+### 12.1. Timestamp Normalization (Version 2.2)
+
+- **Consistent Midnight Timestamps:** All exercise creation, workout logging, and set entry operations now use midnight (00:00:00.000) timestamps instead of current time.
+- **Data Model Changes:** Updated `ExerciseDefinition` and `WorkoutRecord` initializers to default to midnight timestamps.
+- **UI Display Consistency:** Modified `DailyWorkoutsView` to always display workout times as 00:00 regardless of timezone conversion.
+- **Import/Export Compatibility:** Enhanced data import functions to normalize imported timestamps to midnight for consistency.
+- **Utility Functions:** Added Date extension with `midnight` property and `todayAtMidnight` static property for consistent timestamp handling throughout the app.
+
+## 13. Previous Updates (Version 2.1)
 
 ### 12.1. Bodyweight Exercise Support
 
@@ -337,7 +350,7 @@ All data models are located in the `Models/` directory.
 - **Data Migration:** Existing data with weight values continues to work seamlessly.
 - **Import Compatibility:** Can import both old (weight required) and new (weight optional) JSON formats.
 
-## 13. Future Considerations / Potential Enhancements
+## 14. Future Considerations / Potential Enhancements
 
 - **Cloud Sync (iCloud)**
 - **More Advanced Charting & Analytics**

@@ -301,12 +301,12 @@ struct DataManagementView: View {
         
         // Import the new data
         for exerciseData in importData.exercises {
-            let exercise = ExerciseDefinition(name: exerciseData.name, dateAdded: exerciseData.dateAdded)
+            let exercise = ExerciseDefinition(name: exerciseData.name, dateAdded: exerciseData.dateAdded.midnight)
             exercise.id = exerciseData.id
             modelContext.insert(exercise)
             
             for workoutData in exerciseData.workouts {
-                let workout = WorkoutRecord(date: workoutData.date, exerciseDefinition: exercise)
+                let workout = WorkoutRecord(date: workoutData.date.midnight, exerciseDefinition: exercise)
                 workout.id = workoutData.id
                 modelContext.insert(workout)
                 

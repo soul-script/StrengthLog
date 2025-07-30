@@ -8,7 +8,7 @@ struct WorkoutInputView: View {
 
     var exerciseDefinition: ExerciseDefinition
 
-    @State private var workoutDate: Date = Date()
+    @State private var workoutDate: Date = Date.todayAtMidnight
     @State private var sets: [TemporarySetEntry] = []
     @State private var weightString: String = ""
     @State private var repsString: String = ""
@@ -182,8 +182,8 @@ struct WorkoutInputView: View {
     }
 
     private func saveWorkout() {
-        // Create the workout record
-        let newWorkoutRecord = WorkoutRecord(date: workoutDate, exerciseDefinition: exerciseDefinition)
+        // Create the workout record with midnight timestamp
+        let newWorkoutRecord = WorkoutRecord(date: workoutDate.midnight, exerciseDefinition: exerciseDefinition)
         modelContext.insert(newWorkoutRecord)
 
         // Add all sets to the workout record

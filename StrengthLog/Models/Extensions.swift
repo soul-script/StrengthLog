@@ -29,4 +29,17 @@ func calculateOneRepMax(weight: Double, reps: Int) -> Double {
     
     // For multiple reps, use the Epley formula
     return weight * (1 + Double(reps) / 30.0)
-} 
+}
+
+// MARK: - Date utilities for consistent timestamp handling
+extension Date {
+    /// Returns a new Date set to midnight (00:00:00.000) of the same day
+    var midnight: Date {
+        Calendar.current.startOfDay(for: self)
+    }
+    
+    /// Creates a new Date set to midnight (00:00:00.000) of today
+    static var todayAtMidnight: Date {
+        Date().midnight
+    }
+}

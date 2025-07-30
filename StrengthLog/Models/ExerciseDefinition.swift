@@ -9,9 +9,9 @@ final class ExerciseDefinition {
     
     @Relationship(deleteRule: .cascade) var workoutRecords: [WorkoutRecord] = []
     
-    init(name: String, dateAdded: Date = Date()) {
+    init(name: String, dateAdded: Date = Date.todayAtMidnight) {
         self.id = UUID()
         self.name = name
-        self.dateAdded = dateAdded
+        self.dateAdded = dateAdded.midnight
     }
 } 
