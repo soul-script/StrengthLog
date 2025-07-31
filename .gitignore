@@ -145,3 +145,6 @@ timeline.xctimeline
 *.gcda
 coverage/
 test_output/
+
+**/.cursor/**
+StrengthLog_Focused_Enhancement_Plan.md
