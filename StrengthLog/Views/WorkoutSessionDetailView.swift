@@ -4,6 +4,7 @@ import Foundation
 
 struct WorkoutSessionDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.themeManager) var themeManager
     var workoutRecord: WorkoutRecord
     @State private var selectedSet: SetEntry? = nil
     @State private var isEditingSet: Bool = false
@@ -33,101 +34,220 @@ struct WorkoutSessionDetailView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading) {
-            Text(workoutRecord.exerciseDefinition?.name ?? "Unknown Exercise")
-                .font(.largeTitle)
-                .padding(.bottom, 2)
-
-            Text(workoutRecord.date, format: .dateTime.day().month().year())
-                .font(.headline)
-                .padding(.bottom, 10)
-
-            List {
-                Section(header: Text("Sets")) {
-                    ForEach(sortedSets) { set in
+        NavigationStack {
+            Form {
+                // Header Section
+                Section {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack {
-                            if let weight = set.weight {
-                                Text("\(weight, format: .number.precision(.fractionLength(1))) × \(set.reps) reps")
-                            } else {
-                                Text("\(set.reps) reps (bodyweight)")
+                            Image(systemName: "dumbbell.fill")
+                                .foregroundColor(themeManager.accentColor)
+                                .font(.system(size: 24, weight: .medium))
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(workoutRecord.exerciseDefinition?.name ?? "Unknown Exercise")
+                                    .font(.title2)
+                                    .fontWeight(.semibold)
+                                
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar")
+                                        .foregroundColor(.secondary)
+                                        .font(.caption)
+                                    Text(workoutRecord.date, format: .dateTime.day().month().year())
+                                        .font(.subheadline)
+                                        .foregroundColor(.secondary)
+                                }
                             }
+                            
                             Spacer()
-                            if set.calculatedOneRepMax > 0 {
-                                Text("1RM: \(set.calculatedOneRepMax, format: .number.precision(.fractionLength(1)))")
+                        }
+                        
+                        // Total Volume Summary Card
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Total Volume")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                
+                                let hasWeightedSets = workoutRecord.setEntries.contains { $0.weight != nil }
+                                let hasBodyweightSets = workoutRecord.setEntries.contains { $0.weight == nil }
+                                
+                                if hasWeightedSets && hasBodyweightSets {
+                                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1))) (mixed)")
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
+                                } else if hasBodyweightSets && !hasWeightedSets {
+                                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(0))) reps")
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
+                                } else {
+                                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1)))")
+                                        .font(.title3)
+                                        .fontWeight(.semibold)
+                                }
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("Sets")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                
+                                Text("\(sortedSets.count)")
+                                    .font(.title3)
+                                    .fontWeight(.semibold)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                    }
+                    .padding(.vertical, 8)
+                }
+                
+                // Sets Section
+                Section(header: HStack {
+                    Image(systemName: "list.bullet.circle.fill")
+                        .foregroundColor(themeManager.accentColor)
+                        .font(.system(size: 14, weight: .medium))
+                    Text("Sets")
+                }) {
+                    if sortedSets.isEmpty {
+                        HStack {
+                            Image(systemName: "exclamationmark.circle")
+                                .foregroundColor(.secondary)
+                            Text("No sets recorded yet")
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.vertical, 8)
+                    } else {
+                        ForEach(Array(sortedSets.enumerated()), id: \.element.id) { index, set in
+                            HStack(spacing: 12) {
+                                // Set number badge
+                                Text("\(index + 1)")
+                                    .font(.caption)
+                                    .fontWeight(.semibold)
+                                    .foregroundColor(.white)
+                                    .frame(width: 24, height: 24)
+                                    .background(themeManager.accentColor)
+                                    .clipShape(Circle())
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    if let weight = set.weight {
+                                        Text("\(weight, format: .number.precision(.fractionLength(1))) kg × \(set.reps) reps")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                    } else {
+                                        Text("\(set.reps) reps (bodyweight)")
+                                            .font(.subheadline)
+                                            .fontWeight(.medium)
+                                    }
+                                    
+                                    if set.calculatedOneRepMax > 0 {
+                                        Text("Est. 1RM: \(set.calculatedOneRepMax, format: .number.precision(.fractionLength(1))) kg")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: "chevron.right")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
+                            .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedSet = set
+                                editingWeight = set.weight ?? 0
+                                editingReps = set.reps
+                                isEditingSet = true
+                            }
                         }
-                        .padding(.vertical, 4)
-                        .contentShape(Rectangle()) // Make the entire row tappable
-                        .onTapGesture {
-                            selectedSet = set
-                            editingWeight = set.weight ?? 0
-                            editingReps = set.reps
-                            isEditingSet = true
-                        }
-                    }
-                    .onDelete { indexSet in
-                        // Convert UI indices (sorted by time) to model indices
-                        let setsToDelete = indexSet.map { sortedSets[$0] }
-                        
-                        for setToDelete in setsToDelete {
-                            if let index = workoutRecord.setEntries.firstIndex(where: { $0.id == setToDelete.id }) {
-                                modelContext.delete(setToDelete)
-                                workoutRecord.setEntries.remove(at: index)
+                        .onDelete { indexSet in
+                            let setsToDelete = indexSet.map { sortedSets[$0] }
+                            
+                            for setToDelete in setsToDelete {
+                                if let index = workoutRecord.setEntries.firstIndex(where: { $0.id == setToDelete.id }) {
+                                    modelContext.delete(setToDelete)
+                                    workoutRecord.setEntries.remove(at: index)
+                                }
                             }
                         }
                     }
                 }
                 
-                Section(header: Text("Add New Set")) {
-                    Toggle("Bodyweight Exercise", isOn: $isBodyweightExercise)
-                        .onChange(of: isBodyweightExercise) { _, newValue in
-                            if newValue {
-                                newWeight = ""
-                            }
+                // Add New Set Section
+                Section(header: HStack {
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundColor(themeManager.accentColor)
+                        .font(.system(size: 14, weight: .medium))
+                    Text("Add New Set")
+                }) {
+                    Toggle(isOn: $isBodyweightExercise) {
+                        HStack {
+                            Image(systemName: "figure.strengthtraining.traditional")
+                                .foregroundColor(themeManager.accentColor)
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Bodyweight Exercise")
                         }
+                    }
+                    .onChange(of: isBodyweightExercise) { _, newValue in
+                        if newValue {
+                            newWeight = ""
+                        }
+                    }
                     
                     if !isBodyweightExercise {
                         HStack {
-                            Text("Weight:")
-                            TextField("kg/lbs", text: $newWeight)
+                            Image(systemName: "scalemass")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 16))
+                                .frame(width: 20)
+                            Text("Weight")
+                            Spacer()
+                            TextField("kg", text: $newWeight)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 80)
                         }
                     }
                     
                     HStack {
-                        Text("Reps:")
+                        Image(systemName: "number")
+                            .foregroundColor(.secondary)
+                            .font(.system(size: 16))
+                            .frame(width: 20)
+                        Text("Reps")
+                        Spacer()
                         TextField("Count", text: $newReps)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 80)
                     }
                     
-                    Button("Add Set") {
-                        addNewSet()
+                    Button(action: addNewSet) {
+                        HStack {
+                            Image(systemName: "plus")
+                                .font(.system(size: 14, weight: .medium))
+                            Text("Add Set")
+                                .fontWeight(.medium)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(isValidNewSet() ? themeManager.accentColor : Color(.systemGray4))
+                        .foregroundColor(isValidNewSet() ? .white : .secondary)
+                        .cornerRadius(8)
                     }
                     .disabled(!isValidNewSet())
-                }
-
-                Section(header: Text("Total Volume")) {
-                    HStack {
-                        let hasWeightedSets = workoutRecord.setEntries.contains { $0.weight != nil }
-                        let hasBodyweightSets = workoutRecord.setEntries.contains { $0.weight == nil }
-                        
-                        if hasWeightedSets && hasBodyweightSets {
-                            // Mixed exercise types
-                            Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1))) (mixed)")
-                        } else if hasBodyweightSets && !hasWeightedSets {
-                            // All bodyweight
-                            Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(0))) reps")
-                        } else {
-                            // All weighted
-                            Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1)))")
-                        }
-                    }
-                    .font(.title2)
-                    .padding(.vertical, 4)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -146,8 +266,13 @@ struct WorkoutSessionDetailView: View {
         .sheet(isPresented: $isEditingSet) {
             NavigationStack {
                 Form {
-                    Section(header: Text("Edit Set")) {
-                        Toggle("Bodyweight Exercise", isOn: Binding(
+                    Section(header: HStack {
+                        Image(systemName: "pencil.circle.fill")
+                            .foregroundColor(themeManager.accentColor)
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Edit Set")
+                    }) {
+                        Toggle(isOn: Binding(
                             get: { selectedSet?.weight == nil },
                             set: { isBodyweight in
                                 if isBodyweight {
@@ -156,21 +281,43 @@ struct WorkoutSessionDetailView: View {
                                     editingWeight = 1.0
                                 }
                             }
-                        ))
+                        )) {
+                            HStack {
+                                Image(systemName: "figure.strengthtraining.traditional")
+                                    .foregroundColor(themeManager.accentColor)
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("Bodyweight Exercise")
+                            }
+                        }
                         
                         if selectedSet?.weight != nil || editingWeight > 0 {
                             HStack {
-                                Text("Weight:")
-                                TextField("kg/lbs", value: $editingWeight, formatter: NumberFormatter.decimal)
+                                Image(systemName: "scalemass")
+                                    .foregroundColor(.secondary)
+                                    .font(.system(size: 16))
+                                    .frame(width: 20)
+                                Text("Weight")
+                                Spacer()
+                                TextField("kg", value: $editingWeight, formatter: NumberFormatter.decimal)
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 80)
                             }
                         }
+                        
                         HStack {
-                            Text("Reps:")
+                            Image(systemName: "number")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 16))
+                                .frame(width: 20)
+                            Text("Reps")
+                            Spacer()
                             TextField("Count", value: $editingReps, formatter: NumberFormatter.integer)
                                 .keyboardType(.numberPad)
                                 .multilineTextAlignment(.trailing)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 80)
                         }
                     }
                 }
@@ -185,7 +332,6 @@ struct WorkoutSessionDetailView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Save") {
                             if let set = selectedSet {
-                                // If weight is 0 or toggle shows bodyweight, set weight to nil
                                 set.weight = (editingWeight <= 0) ? nil : editingWeight
                                 set.reps = editingReps
                                 set.updateOneRepMax()
@@ -193,6 +339,7 @@ struct WorkoutSessionDetailView: View {
                             isEditingSet = false
                         }
                         .disabled(editingReps <= 0)
+                        .fontWeight(.semibold)
                     }
                 }
             }
@@ -200,8 +347,14 @@ struct WorkoutSessionDetailView: View {
         .sheet(isPresented: $isEditingDate) {
             NavigationStack {
                 Form {
-                    Section(header: Text("Edit Workout Date")) {
+                    Section(header: HStack {
+                        Image(systemName: "calendar.circle.fill")
+                            .foregroundColor(themeManager.accentColor)
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Edit Workout Date")
+                    }) {
                         DatePicker("Date", selection: $editingDate, displayedComponents: .date)
+                            .datePickerStyle(.graphical)
                     }
                 }
                 .navigationTitle("Edit Date")
@@ -217,10 +370,12 @@ struct WorkoutSessionDetailView: View {
                             workoutRecord.date = editingDate.midnight
                             isEditingDate = false
                         }
+                        .fontWeight(.semibold)
                     }
                 }
             }
         }
+        .themeAware()
     }
     
     // Validation for new set inputs
@@ -296,4 +451,5 @@ struct WorkoutSessionDetailView: View {
     // Ensure the view is returned properly
     return WorkoutSessionDetailView(workoutRecord: record)
         .modelContainer(container)
+        .themeAware()
 }

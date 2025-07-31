@@ -4,10 +4,15 @@
 
 ## ✨ Features
 
-- **Exercise Management:**
-  - Define and manage a custom list of your exercises.
-  - Easily add new exercises as your routine evolves.
-  - Edit exercise names or delete them if no longer needed.
+- **Advanced Exercise Management:**
+  - Define and manage a custom list of your exercises with comprehensive categorization.
+  - **Exercise Categories:** Classify exercises by movement patterns (Push, Pull, Squat, Hinge, Carry, Core, Cardio, Flexibility, Plyometric, Other).
+  - **Muscle Group Organization:** Organize exercises by primary muscle groups (Chest, Back, Shoulders, Arms, Legs, Glutes, Core, Cardio, Full Body, Flexibility, Functional, Other).
+  - **Visual Organization:** Color-coded exercise categories and muscle groups for quick identification.
+  - **Smart Filtering:** Filter exercises by muscle group with visual indicators and exercise counts.
+  - **Enhanced Creation:** Add exercises with full categorization support through intuitive interface.
+  - **Advanced Editing:** Modify exercise names, categories, and muscle groups easily.
+  - **Automatic Grouping:** Exercises automatically grouped by muscle group for better organization.
 - **Flexible Workout Logging:**
   - Log workout sessions for each exercise, including the date (automatically normalized to midnight for consistency).
   - **Weighted Exercises:** Record multiple sets with specific weight and repetitions.
@@ -22,15 +27,15 @@
   - **Flexible Filters:** Filter your history by Week (default), Month, Year, or All Time.
   - **Period Navigation:** Easily navigate to the previous or next period (week, month, year) when filters are active.
   - **Seamless Navigation:** Improved back button behavior ensures you always return to the previous screen.
-- **In-Depth Session Details:**
-  - Drill down into individual workout sessions to see all logged sets.
-  - Sets are displayed chronologically (oldest first, as they were performed).
-  - Clear labeling for bodyweight sets vs. weighted sets.
-  - Edit the weight or reps of any existing set, or convert between weighted and bodyweight.
-  - Delete individual sets if logged incorrectly.
-  - **Add New Sets:** Add more sets directly to a past or current session (weighted or bodyweight).
-  - Modify the date of a workout session.
-  - Smart volume display adapts to exercise type (mixed, bodyweight-only, or weighted-only).
+- **Enhanced Session Details:**
+  - **Modern Interface:** Completely redesigned session details with improved visual hierarchy and user experience.
+  - **Smart Summary Cards:** Visual overview showing total volume, set count, and exercise information at a glance.
+  - **Numbered Set Display:** Sets displayed with numbered badges and clear weight/reps information.
+  - **Interactive Set Management:** Tap any set to edit weight, reps, or convert between weighted and bodyweight.
+  - **Streamlined Set Addition:** Enhanced form for adding new sets with improved input validation and visual feedback.
+  - **Flexible Date Editing:** Modify workout dates with an intuitive graphical date picker.
+  - **Smart Empty States:** Informative messages when no sets are recorded yet.
+  - **Consistent Theming:** Full integration with app's theme system including accent colors and dark mode support.
 - **Progress Visualization:**
   - Track your progress with interactive charts.
   - Select specific exercises to visualize trends.
@@ -91,6 +96,8 @@ StrengthLog is currently feature-complete based on its initial and expanded scop
 
 Recent updates include:
 
+- **Session Details UI Overhaul (v2.5):** Complete redesign of workout session details with modern interface, smart summary cards, numbered set displays, enhanced editing capabilities, and full theme integration
+- **Exercise Categories & Muscle Groups (v2.4):** Comprehensive exercise categorization system with 12 muscle groups and 10 exercise categories, featuring visual organization, smart filtering, and enhanced exercise management
 - **Comprehensive UI Enhancement (v2.3):** Complete visual transformation from functional to modern and visually appealing interface while maintaining core simplicity
 - **Dark Mode & Theme System (v2.3):** Complete theme customization with dark mode support, 8 accent colors, and instant theme switching
 - **Modern Component Architecture (v2.3):** Reusable UI components (StatCard, EnhancedDailySummaryRow, ProgressStatCard, etc.) for consistent design across all views

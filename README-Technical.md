@@ -1,6 +1,6 @@
 # StrengthLog: Technical Documentation
 
-**Version:** 2.3 (Post-Dark Mode & Theme System Implementation)
+**Version:** 2.5 (Post-Session Details UI Overhaul)
 **Date:** January 2025
 **Document Purpose:** This document provides a comprehensive technical overview of the StrengthLog iOS application, intended for development teams, new developers onboarding to the project, or for future maintenance and enhancement purposes.
 
@@ -62,16 +62,28 @@ All data models are located in the `Models/` directory.
   - `AppAccentColor`: Provides `color` computed property returning SwiftUI `Color` values
   - `WeightUnit`: For future weight unit preferences
 
-### 3.1. `ExerciseDefinition.swift`
+### 3.1. `ExerciseDefinition.swift` (Updated Version 2.4)
 
-- **Purpose:** Represents a specific type of exercise (e.g., "Squat", "Bench Press", "Pull-ups").
+- **Purpose:** Represents a specific type of exercise (e.g., "Squat", "Bench Press", "Pull-ups") with enhanced categorization and muscle group classification.
 - **Fields:**
   - `id: UUID` (Primary key, unique)
   - `name: String` (Name of the exercise)
   - `dateAdded: Date` (Date the exercise was added)
+  - `muscleGroup: MuscleGroup` (Primary muscle group targeted - defaults to `.other`)
+  - `category: ExerciseCategory` (Exercise movement category - defaults to `.other`)
 - **Relationships:**
   - `workoutRecords: [WorkoutRecord]` (One-to-Many with `WorkoutRecord`). Configured with `deleteRule: .cascade`.
-- **Initialization:** `init(name: String, dateAdded: Date = Date.todayAtMidnight)` - All exercise creation timestamps are normalized to midnight.
+- **Initialization:** `init(name: String, muscleGroup: MuscleGroup = .other, category: ExerciseCategory = .other, dateAdded: Date = Date.todayAtMidnight)` - All exercise creation timestamps are normalized to midnight.
+- **Enhanced Enums (Version 2.4):**
+  - **`MuscleGroup`:** 12 primary muscle groups with visual properties:
+    - `.chest`, `.back`, `.shoulders`, `.arms`, `.legs`, `.glutes`, `.core`, `.cardio`, `.fullBody`, `.flexibility`, `.functional`, `.other`
+    - Each includes: `displayName`, `color` (SwiftUI Color), `icon` (SF Symbol), `description`
+  - **`ExerciseCategory`:** 10 movement categories with visual properties:
+    - `.push`, `.pull`, `.squat`, `.hinge`, `.carry`, `.core`, `.cardio`, `.flexibility`, `.plyometric`, `.other`
+    - Each includes: `displayName`, `color` (SwiftUI Color), `icon` (SF Symbol), `description`
+- **Convenience Methods:**
+  - `muscleGroupDisplayName: String` - Returns formatted muscle group name
+  - `categoryDisplayName: String` - Returns formatted category name
 
 ### 3.2. `WorkoutRecord.swift`
 
@@ -131,14 +143,27 @@ All data models are located in the `Models/` directory.
 
 ## 5. User Interface (SwiftUI Views)
 
-### 5.1. `ContentView.swift` (Main Navigation & Exercise Management)
+### 5.1. `ContentView.swift` (Main Navigation & Enhanced Exercise Management) (Updated Version 2.4)
 
-- **Purpose:** Main navigation screen, lists exercises, and provides links to features.
+- **Purpose:** Main navigation screen with enhanced exercise categorization, filtering, and visual organization.
 - **Navigation:** Uses `NavigationStack` for proper back button behavior throughout the app.
-- **Functionality:**
-  - Links to `WorkoutHistoryListView`, `ProgressChartsView`, `DataManagementView`, and **Settings** (Version 2.3).
-  - Lists `ExerciseDefinition`s, allowing addition (with name prompt), editing (name via context menu), and deletion (swipe-to-delete).
-  - Each exercise navigates to `ExerciseDetailView` with NavigationLink support for workout sessions.
+- **Enhanced Functionality (Version 2.4):**
+  - Links to `WorkoutHistoryListView`, `ProgressChartsView`, `DataManagementView`, and **Settings**.
+  - **Advanced Exercise Management:**
+    - **Muscle Group Filtering:** Filter exercises by muscle group with "All" option
+    - **Exercise Grouping:** Group exercises by muscle group for better organization
+    - **Enhanced Exercise Creation:** `AddExerciseView` with muscle group and category selection
+    - **Exercise Editing:** `EditExerciseView` for modifying exercise properties
+    - **Visual Categories:** Color-coded muscle group and category tags on each exercise
+  - **New UI Components:**
+    - `FilterOptionsView`: Muscle group filter with visual indicators
+    - `AddExerciseView`: Modal sheet for creating exercises with categorization
+    - `EditExerciseView`: Modal sheet for editing exercise properties
+    - `EnhancedExerciseRowView`: Exercise rows with category/muscle group visual tags
+  - **Enhanced Display:**
+    - Exercises grouped by muscle group when filter is "All"
+    - Color-coded visual tags for immediate exercise identification
+    - Improved exercise count indicators per muscle group
 
 ### 5.2. `ExerciseDetailView.swift` (struct within `ContentView.swift`)
 
@@ -190,30 +215,42 @@ All data models are located in the `Models/` directory.
   - Each listed workout is a `NavigationLink` to `WorkoutSessionDetailView`.
 - **Navigation Title:** Formatted date (e.g., "May 18, 2025").
 
-### 5.6. `WorkoutSessionDetailView.swift`
+### 5.6. `WorkoutSessionDetailView.swift` (Updated Version 2.5)
 
-- **Purpose:** Shows full details of a selected `WorkoutRecord`, allowing users to edit/delete individual sets, edit the workout date, and add new sets.
+- **Purpose:** Shows full details of a selected `WorkoutRecord` with a completely redesigned modern interface, allowing users to edit/delete individual sets, edit the workout date, and add new sets.
 - **Navigation:** Uses `NavigationStack` for all modal sheets to ensure proper back button behavior.
+- **Enhanced UI Design (Version 2.5):**
+  - **Modern Interface:** Complete visual overhaul with improved hierarchy, spacing, and user experience.
+  - **Smart Header Section:** Exercise information with dumbbell icon, improved typography, and date display with calendar icon.
+  - **Summary Cards:** Visual overview showing total volume and set count in a styled card format.
+  - **Enhanced Set Display:** Numbered badges for each set with accent color theming and clear information layout.
+  - **Visual Feedback:** Chevron indicators for tappable items and proper empty state handling.
+  - **Themed Integration:** Full `ThemeManager` integration with consistent accent color usage throughout.
 - **Key State & Data:**
   - `var workoutRecord: WorkoutRecord`: The workout session being detailed.
+  - `@Environment(\.themeManager) var themeManager`: Theme integration for consistent styling.
   - States for editing an existing set (`selectedSet`, `isEditingSet`, `editingWeight`, `editingReps`).
   - States for editing the workout date (`isEditingDate`, `editingDate`).
   - States for adding a new set (`newWeight`, `newReps`, `isBodyweightExercise`).
-- **Functionality:**
-  - Displays exercise name and workout date.
-  - **Sets List:**
-    - `sortedSets: [SetEntry]`: A computed property that sorts `workoutRecord.setEntries` based on their original order in the array (reflecting creation order, oldest first).
-    - **Enhanced Display:** Shows weight and reps for weighted sets, "reps (bodyweight)" for bodyweight sets.
-    - **1RM Display:** Shows 1RM only for weighted sets.
-    - **Tap to Edit Set:** Presents a sheet for modifying weight/reps of an existing set, with bodyweight toggle support.
-    - **Swipe to Delete Set:** Allows deleting individual `SetEntry`s.
-  - **Add New Set Section:**
-    - **Bodyweight Toggle:** Option to add bodyweight sets.
-    - **Conditional Fields:** Weight input shown only for weighted sets.
-    - **Enhanced Validation:** Validates based on exercise type.
-    - "Add Set" button calls `addNewSet()`, which creates a new `SetEntry`, links it to the `workoutRecord`, and saves it. Input fields are cleared after adding.
-  - **Smart Volume Display:** Adapts to exercise types (mixed, bodyweight-only, or weighted-only).
-  - **Toolbar:** "Edit Date" button presents a sheet to modify `workoutRecord.date`.
+- **Enhanced Functionality:**
+  - **Smart Header Display:** Exercise name with dumbbell icon, formatted date with calendar icon.
+  - **Visual Summary Card:** Total volume and set count displayed in a styled background card.
+  - **Enhanced Sets List:**
+    - `sortedSets: [SetEntry]`: Chronologically ordered sets (oldest first).
+    - **Numbered Display:** Each set shows with a numbered badge using theme accent color.
+    - **Improved Information Layout:** Weight/reps with estimated 1RM display for weighted sets.
+    - **Smart Empty States:** Informative messages when no sets are recorded.
+    - **Interactive Elements:** Clear visual indicators for tappable items.
+  - **Streamlined Set Addition:**
+    - **Enhanced Form Design:** Better styling with rounded text fields and proper spacing.
+    - **Icon Integration:** Relevant SF Symbols for weight and reps inputs.
+    - **Visual Button States:** Styled add button with proper disabled state handling.
+    - **Improved Validation:** Enhanced form validation with visual feedback.
+  - **Enhanced Modal Sheets:**
+    - **Consistent Styling:** All modals use themed headers with relevant icons.
+    - **Better Form Layout:** Improved spacing and input field styling in edit sheets.
+    - **Graphical Date Picker:** Enhanced date editing with `.graphical` style.
+    - **Theme Integration:** Consistent button styling and accent color usage.
 - **Navigation Title:** "Session Details".
 
 ### 5.7. `ProgressChartsView.swift`
@@ -237,16 +274,18 @@ All data models are located in the `Models/` directory.
 - **Navigation:** Uses `NavigationStack` with proper title and styling.
 - **Integration:** Direct integration with `ThemeManager` for immediate theme application.
 
-### 5.9. `Views/DataManagementView.swift`
+### 5.9. `Views/DataManagementView.swift` (Updated Version 2.4)
 
-- **Purpose:** Allows JSON export/import of all data and clearing all data.
-- **Enhanced Functionality (Version 2.3):**
-  - **Updated Export/Import:** Full support for optional weight in JSON structures and `AppSettings` integration.
+- **Purpose:** Allows JSON export/import of all data and clearing all data with enhanced categorization support.
+- **Enhanced Functionality (Version 2.4):**
+  - **Updated Export/Import:** Full support for `muscleGroup` and `category` properties in JSON structures with backward compatibility.
   - **Settings Persistence:** Theme preferences included in export/import operations.
-  - `.fileExporter` for JSON export with bodyweight exercise compatibility.
-  - `.fileImporter` for JSON import (replaces existing data) with backward compatibility.
+  - **Backward Compatibility:** Handles import of older JSON formats without muscle group/category data (defaults to `.other`).
+  - **Enhanced Export Structure:** Includes muscle group and category information for comprehensive data backup.
+  - `.fileExporter` for JSON export with complete exercise categorization data.
+  - `.fileImporter` for JSON import (replaces existing data) with full backward compatibility.
   - Confirmation alert for clearing all data.
-  - Displays database statistics.
+  - Displays database statistics including exercise categorization breakdown.
 
 ### 5.10. `AppIcon.swift` & `Views/AppIconPreviewView.swift`
 
@@ -363,9 +402,65 @@ All data models are located in the `Models/` directory.
 - **App Icon:** Custom `AppIcon.swift` for design. Rasterized assets needed for `Assets.xcassets`.
 - **Deployment:** Standard App Store submission.
 
-## 12. Recent Updates (Version 2.3)
+## 12. Recent Updates (Version 2.5)
 
-### 12.1. Dark Mode & Theme System Implementation
+### 12.1. Session Details UI Overhaul Implementation
+
+- **Complete Interface Redesign:** Transformed `WorkoutSessionDetailView` from functional to modern, visually appealing interface while maintaining core functionality.
+- **Enhanced Visual Hierarchy:**
+  - **Smart Header Section:** Exercise name with dumbbell icon, improved typography with proper font weights.
+  - **Summary Cards:** Visual overview cards showing total volume and set count with styled backgrounds.
+  - **Themed Icons:** Contextual SF Symbols throughout with consistent accent color theming.
+- **Improved Set Management:**
+  - **Numbered Badges:** Each set displays with numbered circular badges using theme accent colors.
+  - **Enhanced Information Layout:** Better spacing and typography for weight, reps, and 1RM display.
+  - **Interactive Indicators:** Clear chevron indicators for tappable set items.
+  - **Smart Empty States:** Informative messages when no sets are recorded yet.
+- **Streamlined User Experience:**
+  - **Enhanced Form Design:** Improved input fields with rounded text field styling and better validation feedback.
+  - **Icon Integration:** Relevant SF Symbols for weight (scalemass) and reps (number) inputs.
+  - **Visual Button States:** Styled "Add Set" button with proper enabled/disabled state styling.
+  - **Better Modal Presentations:** Consistent themed headers across all sheet presentations.
+- **Theme System Integration:**
+  - **Full ThemeManager Integration:** Complete integration with app's theme system including accent colors and dark mode support.
+  - **Consistent Styling:** All elements follow the app's design language and respond to theme changes.
+  - **Enhanced Date Picker:** Graphical date picker style for better user experience.
+- **Technical Improvements:**
+  - **NavigationStack Usage:** Proper navigation structure for all modal presentations.
+  - **Theme-Aware Components:** `.themeAware()` modifier application for consistent theming.
+  - **Improved Form Validation:** Enhanced validation with visual feedback for better user guidance.
+
+## 13. Previous Updates (Version 2.4)
+
+### 13.1. Exercise Categories & Muscle Groups Implementation
+
+- **Enhanced Data Model:** Comprehensive categorization system for exercises with visual properties and user-friendly organization.
+- **New Enums with Visual Properties:**
+  - **`MuscleGroup`:** 12 primary muscle groups (Chest, Back, Shoulders, Arms, Legs, Glutes, Core, Cardio, Full Body, Flexibility, Functional, Other)
+  - **`ExerciseCategory`:** 10 movement categories (Push, Pull, Squat, Hinge, Carry, Core, Cardio, Flexibility, Plyometric, Other)
+  - **Visual Integration:** Each enum includes display names, colors, SF Symbol icons, and descriptions
+- **Enhanced Exercise Management:**
+  - **Advanced Filtering:** Filter exercises by muscle group with visual indicators and exercise counts
+  - **Smart Grouping:** Automatic exercise grouping by muscle group for better organization
+  - **Enhanced Creation/Editing:** Complete muscle group and category selection during exercise creation and editing
+  - **Visual Categorization:** Color-coded tags and icons for immediate exercise identification
+- **UI Component Architecture:**
+  - `FilterOptionsView`: Muscle group filter interface with visual feedback
+  - `AddExerciseView` & `EditExerciseView`: Enhanced exercise management modals
+  - `EnhancedExerciseRowView`: Exercise display with categorization tags
+- **Data Management:**
+  - **Backward Compatible Export/Import:** Full support for new categorization data with fallback for older formats
+  - **Default Categorization:** Intelligent defaults for uncategorized exercises
+  - **Enhanced Database Statistics:** Category and muscle group breakdown in data management
+- **User Experience:**
+  - **Visual Organization:** Color-coded exercise organization for faster navigation
+  - **Intuitive Filtering:** Quick muscle group filtering with visual feedback
+  - **Comprehensive Categorization:** Professional exercise classification system
+  - **Enhanced Discoverability:** Better exercise organization and visual cues
+
+## 14. Previous Updates (Version 2.3)
+
+### 14.1. Dark Mode & Theme System Implementation
 
 - **New Data Model:** Added `AppSettings` model with `ThemeMode`, `AppAccentColor`, and preference storage.
 - **Theme Management:** Implemented centralized `ThemeManager` with reactive updates and environment integration.
@@ -378,7 +473,7 @@ All data models are located in the `Models/` directory.
   - **Immediate Application:** Theme changes apply instantly without app restart
   - **Persistent Preferences:** All settings automatically saved and restored
 
-### 12.2. Comprehensive UI Enhancement Implementation
+### 14.2. Comprehensive UI Enhancement Implementation
 
 - **Visual Design Transformation:** Complete overhaul of the application interface from functional but plain to modern and visually appealing while maintaining core simplicity.
 - **Component Architecture:** Implemented reusable UI components for consistent design across all views:
@@ -403,9 +498,9 @@ All data models are located in the `Models/` directory.
   - **Subtle Visual Effects:** Tasteful shadows, backgrounds, and rounded corners for modern app feel
   - **Accessibility Preservation:** All enhancements maintain iOS accessibility standards and readability
 
-## 13. Previous Updates (Version 2.2)
+## 15. Previous Updates (Version 2.2)
 
-### 12.1. Timestamp Normalization (Version 2.2)
+### 15.1. Timestamp Normalization (Version 2.2)
 
 - **Consistent Midnight Timestamps:** All exercise creation, workout logging, and set entry operations now use midnight (00:00:00.000) timestamps instead of current time.
 - **Data Model Changes:** Updated `ExerciseDefinition` and `WorkoutRecord` initializers to default to midnight timestamps.
@@ -413,28 +508,28 @@ All data models are located in the `Models/` directory.
 - **Import/Export Compatibility:** Enhanced data import functions to normalize imported timestamps to midnight for consistency.
 - **Utility Functions:** Added Date extension with `midnight` property and `todayAtMidnight` static property for consistent timestamp handling throughout the app.
 
-## 14. Previous Updates (Version 2.1)
+## 16. Previous Updates (Version 2.1)
 
-### 12.1. Bodyweight Exercise Support
+### 16.1. Bodyweight Exercise Support
 
 - **Data Model Changes:** Made `SetEntry.weight` optional to support bodyweight exercises.
 - **UI Enhancements:** Added bodyweight toggles throughout the app.
 - **Smart Calculations:** Volume and 1RM calculations adapt to exercise type.
 - **Export/Import:** Updated JSON structures to handle optional weight.
 
-### 12.2. Navigation Improvements
+### 16.2. Navigation Improvements
 
 - **Architecture Change:** Replaced `NavigationSplitView` with `NavigationStack` in main ContentView.
 - **Modal Sheets:** Updated all modal presentations to use `NavigationStack`.
 - **Back Button Fix:** Resolved issue where back button would skip to main page instead of previous screen.
 - **Enhanced UX:** Added NavigationLinks to workout rows in ExerciseDetailView.
 
-### 12.3. Backward Compatibility
+### 16.3. Backward Compatibility
 
 - **Data Migration:** Existing data with weight values continues to work seamlessly.
 - **Import Compatibility:** Can import both old (weight required) and new (weight optional) JSON formats.
 
-## 15. Future Considerations / Potential Enhancements
+## 17. Future Considerations / Potential Enhancements
 
 - **Cloud Sync (iCloud)**
 - **More Advanced Charting & Analytics**
@@ -444,5 +539,4 @@ All data models are located in the `Models/` directory.
 - **WatchOS App**
 - **Localization**
 - **Accessibility Enhancements**
-- **Exercise Categories** (Push, Pull, Legs, etc.)
 - **Bodyweight Progression Tracking** (weighted pull-ups, progression to harder variations)
