@@ -38,10 +38,20 @@
   - Filter chart data by various time ranges (1 Month, 3 Months, 6 Months, 1 Year, All Time).
   - Tap on data points in the chart to see specific values and dates.
 - **Data Management:**
-  - **Export Data:** Securely back up all your workout data (exercises, workouts, and sets) to a JSON file with full bodyweight exercise support.
+  - **Export Data:** Securely back up all your workout data (exercises, workouts, sets, and theme preferences) to a JSON file with full bodyweight exercise support.
   - **Import Data:** Restore your data from a previously exported JSON file. (Note: Importing replaces existing data).
   - **Clear All Data:** Option to reset all app data with confirmation.
   - View database statistics (counts of exercises, workouts, sets).
+- **Modern & Customizable Interface:**
+  - **Enhanced Visual Design:** Modern, visually appealing interface with improved visual hierarchy and consistent design language.
+  - **Component Architecture:** Reusable UI components for consistent experience across all views.
+  - **Color-Coded Interface:** Meaningful use of colors for better user guidance and visual communication.
+  - **SF Symbols Integration:** Contextual system icons throughout the app for enhanced visual communication.
+  - **Dark Mode Support:** Choose between Light, Dark, or System theme modes (follows device setting).
+  - **Accent Colors:** Personalize your experience with 8 beautiful accent colors (Blue, Green, Orange, Red, Purple, Pink, Indigo, Teal).
+  - **Instant Application:** Theme changes apply immediately without restarting the app.
+  - **Persistent Preferences:** All theme settings are automatically saved and restored.
+  - **Settings Interface:** Easy-to-use settings screen for customizing your experience.
 - **Custom App Icon:** A unique, programmatically drawn app icon.
 
 ## 🛠 Technology Stack
@@ -77,10 +87,14 @@
 
 ## 📈 Project Status
 
-StrengthLog is currently feature-complete based on its initial and expanded scope, including robust workout logging with bodyweight exercise support, history tracking with improved navigation, progress visualization, and comprehensive data management.
+StrengthLog is currently feature-complete based on its initial and expanded scope, including robust workout logging with bodyweight exercise support, history tracking with improved navigation, progress visualization, comprehensive data management, and modern UI design.
 
 Recent updates include:
 
+- **Comprehensive UI Enhancement (v2.3):** Complete visual transformation from functional to modern and visually appealing interface while maintaining core simplicity
+- **Dark Mode & Theme System (v2.3):** Complete theme customization with dark mode support, 8 accent colors, and instant theme switching
+- **Modern Component Architecture (v2.3):** Reusable UI components (StatCard, EnhancedDailySummaryRow, ProgressStatCard, etc.) for consistent design across all views
+- **Enhanced Visual Design (v2.3):** Improved visual hierarchy, color-coded interface, SF Symbols integration, and 8-point grid system
 - **Timestamp Normalization (v2.2):** All workout dates and exercise creation times are now consistently stored and displayed at midnight (00:00:00.000) for better data organization and consistency across time zones
 - **Bodyweight Exercise Support (v2.1):** Full support for logging exercises without weight (pull-ups, push-ups, etc.)
 - **Improved Navigation (v2.1):** Fixed back button behavior throughout the app for consistent user experience

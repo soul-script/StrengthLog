@@ -7,6 +7,7 @@ struct DataManagementView: View {
     @Query private var exercises: [ExerciseDefinition]
     @Query private var workouts: [WorkoutRecord]
     @Query private var sets: [SetEntry]
+    @Query private var settings: [AppSettings]
     
     @State private var exportURL: URL?
     @State private var isExporting = false
@@ -18,85 +19,229 @@ struct DataManagementView: View {
     @State private var showingClearConfirmation = false
     
     var body: some View {
-        List {
-            Section(header: Text("Export Data")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Export all your workout data to a JSON file")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Button(action: exportData) {
-                        Label("Export Data", systemImage: "arrow.up.doc")
-                            .frame(maxWidth: .infinity)
+        ScrollView {
+            VStack(spacing: 24) {
+                // Enhanced Export Section
+                VStack(spacing: 16) {
+                    HStack {
+                        Image(systemName: "arrow.up.doc.fill")
+                            .foregroundColor(.blue)
+                        Text("Export Data")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Spacer()
                     }
-                    .buttonStyle(.borderedProminent)
-                    .padding(.vertical, 8)
-                }
-            }
-            
-            Section(header: Text("Import Data")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Import workout data from a JSON file")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
                     
-                    Text("Warning: This will replace all existing data")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    
-                    Button(action: { isImporting = true }) {
-                        Label("Import Data", systemImage: "arrow.down.doc")
-                            .frame(maxWidth: .infinity)
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Export all your workout data to a JSON file")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        Button(action: exportData) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .font(.system(size: 16, weight: .medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Export All Data")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("Save a backup of your progress")
+                                        .font(.caption)
+                                        .opacity(0.8)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.white)
+                            .padding(16)
+                            .background(Color.blue)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                     }
-                    .buttonStyle(.bordered)
-                    .padding(.vertical, 8)
                 }
-            }
-            
-            Section(header: Text("Clear Data")) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Delete all exercises and workout records")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                    
-                    Text("Warning: This action cannot be undone")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                    
-                    Button(action: { showingClearConfirmation = true }) {
-                        Label("Clear All Data", systemImage: "trash")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.bordered)
-                    .foregroundColor(.red)
-                    .padding(.vertical, 8)
-                }
-            }
-            
-            Section(header: Text("Database Statistics")) {
-                HStack {
-                    Text("Exercises")
-                    Spacer()
-                    Text("\(exercises.count)")
-                        .foregroundColor(.secondary)
-                }
+                .padding(20)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                 
-                HStack {
-                    Text("Workout Records")
-                    Spacer()
-                    Text("\(workouts.count)")
-                        .foregroundColor(.secondary)
+                // Enhanced Import Section
+                VStack(spacing: 16) {
+                    HStack {
+                        Image(systemName: "arrow.down.doc.fill")
+                            .foregroundColor(.green)
+                        Text("Import Data")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Import workout data from a JSON file")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 12))
+                            Text("This will replace all existing data")
+                                .font(.caption)
+                                .foregroundColor(.orange)
+                                .fontWeight(.medium)
+                        }
+                        .padding(8)
+                        .background(Color.orange.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        
+                        Button(action: { isImporting = true }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "square.and.arrow.down")
+                                    .font(.system(size: 16, weight: .medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Import Data File")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("Restore from backup")
+                                        .font(.caption)
+                                        .opacity(0.8)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.green)
+                            .padding(16)
+                            .background(Color.green.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.green.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                    }
                 }
+                .padding(20)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                 
-                HStack {
-                    Text("Set Entries")
-                    Spacer()
-                    Text("\(sets.count)")
-                        .foregroundColor(.secondary)
+                // Enhanced Clear Data Section
+                VStack(spacing: 16) {
+                    HStack {
+                        Image(systemName: "trash.fill")
+                            .foregroundColor(.red)
+                        Text("Clear Data")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Delete all exercises and workout records")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                        
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                                .font(.system(size: 12))
+                            Text("This action cannot be undone")
+                                .font(.caption)
+                                .foregroundColor(.red)
+                                .fontWeight(.medium)
+                        }
+                        .padding(8)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        
+                        Button(action: { showingClearConfirmation = true }) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 16, weight: .medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Clear All Data")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("Reset application")
+                                        .font(.caption)
+                                        .opacity(0.8)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.red)
+                            .padding(16)
+                            .background(Color.red.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                    }
                 }
+                .padding(20)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                
+                // Enhanced Statistics Section
+                VStack(spacing: 16) {
+                    HStack {
+                        Image(systemName: "chart.bar.fill")
+                            .foregroundColor(.purple)
+                        Text("Database Statistics")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+                    
+                    VStack(spacing: 12) {
+                        DataStatRow(
+                            icon: "dumbbell.fill",
+                            title: "Exercises",
+                            value: "\(exercises.count)",
+                            color: .blue
+                        )
+                        
+                        DataStatRow(
+                            icon: "calendar.badge.clock",
+                            title: "Workout Records",
+                            value: "\(workouts.count)",
+                            color: .green
+                        )
+                        
+                        DataStatRow(
+                            icon: "list.number",
+                            title: "Set Entries",
+                            value: "\(sets.count)",
+                            color: .orange
+                        )
+                        
+                        DataStatRow(
+                            icon: "gear",
+                            title: "Settings",
+                            value: "\(settings.count)",
+                            color: .purple
+                        )
+                    }
+                }
+                .padding(20)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
             }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 16)
         }
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("Data Management")
+        .navigationBarTitleDisplayMode(.large)
         .fileExporter(
             isPresented: $isExporting,
             document: JSONDocument(initialText: createExportJSON()),
@@ -186,6 +331,14 @@ struct DataManagementView: View {
             // Create a data structure to represent the export data
             struct ExportData: Codable {
                 var exercises: [ExerciseData]
+                var settings: SettingsData?
+            }
+            
+            struct SettingsData: Codable {
+                var themeMode: String
+                var accentColor: String
+                var showAdvancedStats: Bool
+                var defaultWeightUnit: String
             }
             
             struct ExerciseData: Codable {
@@ -244,7 +397,17 @@ struct DataManagementView: View {
                 exportExercises.append(exerciseData)
             }
             
-            let exportData = ExportData(exercises: exportExercises)
+            // Include settings in export
+            let settingsData: SettingsData? = settings.first.map { appSettings in
+                SettingsData(
+                    themeMode: appSettings.themeMode.rawValue,
+                    accentColor: appSettings.accentColor.rawValue,
+                    showAdvancedStats: appSettings.showAdvancedStats,
+                    defaultWeightUnit: appSettings.defaultWeightUnit.rawValue
+                )
+            }
+            
+            let exportData = ExportData(exercises: exportExercises, settings: settingsData)
             
             // Convert to JSON
             let encoder = JSONEncoder()
@@ -267,6 +430,14 @@ struct DataManagementView: View {
         // Define the import data structure
         struct ImportData: Codable {
             var exercises: [ExerciseData]
+            var settings: SettingsData?
+        }
+        
+        struct SettingsData: Codable {
+            var themeMode: String
+            var accentColor: String
+            var showAdvancedStats: Bool
+            var defaultWeightUnit: String
         }
         
         struct ExerciseData: Codable {
@@ -322,6 +493,29 @@ struct DataManagementView: View {
             }
         }
         
+        // Import settings if available
+        if let settingsData = importData.settings {
+            // Clear existing settings
+            for setting in settings {
+                modelContext.delete(setting)
+            }
+            
+            // Create new settings from imported data
+            let newSettings = AppSettings()
+            if let themeMode = ThemeMode(rawValue: settingsData.themeMode) {
+                newSettings.themeMode = themeMode
+            }
+            if let accentColor = AppAccentColor(rawValue: settingsData.accentColor) {
+                newSettings.accentColor = accentColor
+            }
+            newSettings.showAdvancedStats = settingsData.showAdvancedStats
+            if let weightUnit = WeightUnit(rawValue: settingsData.defaultWeightUnit) {
+                newSettings.defaultWeightUnit = weightUnit
+            }
+            
+            modelContext.insert(newSettings)
+        }
+        
         // Save changes
         try modelContext.save()
     }
@@ -358,13 +552,49 @@ struct JSONDocument: FileDocument {
     }
 }
 
+// Data statistics row component
+struct DataStatRow: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(0.1))
+                .clipShape(Circle())
+            
+            Text(title)
+                .font(.subheadline)
+                .foregroundColor(.primary)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.subheadline)
+                .fontWeight(.semibold)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(.systemGray5))
+                .clipShape(Capsule())
+        }
+        .padding(.vertical, 4)
+    }
+}
+
 #Preview {
     NavigationStack {
         DataManagementView()
             .modelContainer(for: [
                 ExerciseDefinition.self,
                 WorkoutRecord.self,
-                SetEntry.self
+                SetEntry.self,
+                AppSettings.self
             ], inMemory: true)
     }
 } 

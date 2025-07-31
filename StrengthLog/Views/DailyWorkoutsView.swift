@@ -20,37 +20,221 @@ struct DailyWorkoutsView: View {
     }
     
     var body: some View {
-        List {
-            ForEach(workoutRecords) { record in
-                NavigationLink {
-                    WorkoutSessionDetailView(workoutRecord: record)
-                } label: {
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text(record.exerciseDefinition?.name ?? "Unknown Exercise")
-                                .font(.headline)
-                            Text(record.date.midnight, format: .dateTime.hour().minute())
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
+        ScrollView {
+            VStack(spacing: 0) {
+                if workoutRecords.isEmpty {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No Workouts",
+                        systemImage: "dumbbell",
+                        description: Text("No workouts logged for this day")
+                    )
+                    Spacer()
+                } else {
+                    // Day summary header
+                    VStack(spacing: 16) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(formattedDate)
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                Text(dayOfWeek)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            Spacer()
+                            
+                            VStack(alignment: .trailing, spacing: 4) {
+                                Text("\(workoutRecords.count) workout\(workoutRecords.count == 1 ? "" : "s")")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text("\(totalSets) sets")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                        Spacer()
-                        VStack(alignment: .trailing) {
-                            Text("\(record.setEntries.count) sets")
-                                .font(.subheadline)
-                            Text("Volume: \(record.totalVolume, format: .number.precision(.fractionLength(1)))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        
+                        // Quick stats
+                        HStack(spacing: 16) {
+                            DayStatCard(
+                                icon: "dumbbell.fill",
+                                title: "Exercises",
+                                value: "\(uniqueExercises)",
+                                color: .blue
+                            )
+                            
+                            DayStatCard(
+                                icon: "list.number",
+                                title: "Total Sets",
+                                value: "\(totalSets)",
+                                color: .green
+                            )
+                            
+                            DayStatCard(
+                                icon: "chart.bar.fill",
+                                title: "Volume",
+                                value: String(format: "%.1f", totalVolume),
+                                color: .orange
+                            )
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(20)
+                    .background(Color(.systemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    
+                    // Workout list
+                    LazyVStack(spacing: 12) {
+                        ForEach(workoutRecords) { record in
+                            NavigationLink {
+                                WorkoutSessionDetailView(workoutRecord: record)
+                            } label: {
+                                EnhancedWorkoutRow(workoutRecord: record)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 24)
+                    .padding(.bottom, 20)
                 }
             }
         }
-        .navigationTitle(formattedDate)
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Daily Workouts")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private var dayOfWeek: String {
+        date.formatted(.dateTime.weekday(.wide))
+    }
+    
+    private var totalSets: Int {
+        workoutRecords.reduce(0) { $0 + $1.setEntries.count }
+    }
+    
+    private var totalVolume: Double {
+        workoutRecords.reduce(0.0) { $0 + $1.totalVolume }
+    }
+    
+    private var uniqueExercises: Int {
+        Set(workoutRecords.compactMap { $0.exerciseDefinition?.name }).count
     }
     
     private var formattedDate: String {
         date.formatted(.dateTime.day().month().year())
+    }
+}
+
+// Day statistics card component
+struct DayStatCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 24, height: 24)
+                .background(color.opacity(0.1))
+                .clipShape(Circle())
+            
+            VStack(spacing: 2) {
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+    }
+}
+
+// Enhanced workout row component
+struct EnhancedWorkoutRow: View {
+    let workoutRecord: WorkoutRecord
+    
+    var formattedTime: String {
+        workoutRecord.date.formatted(.dateTime.hour().minute())
+    }
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Time indicator
+            VStack(spacing: 4) {
+                Text(formattedTime)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+                
+                Circle()
+                    .fill(Color.blue)
+                    .frame(width: 8, height: 8)
+            }
+            .frame(width: 60)
+            
+            // Workout details
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "dumbbell.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.blue)
+                    
+                    Text(workoutRecord.exerciseDefinition?.name ?? "Unknown Exercise")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                }
+                
+                HStack(spacing: 16) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "list.number")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                        Text("\(workoutRecord.setEntries.count) sets")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    if workoutRecord.totalVolume > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chart.bar.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            Text("Volume: \(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1))) kg")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                }
+            }
+            
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .padding(16)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
 

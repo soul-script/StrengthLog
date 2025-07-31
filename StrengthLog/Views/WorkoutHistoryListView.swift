@@ -57,61 +57,114 @@ struct WorkoutHistoryListView: View {
     }
     
     var body: some View {
-        VStack {
-            // Time period selector
-            HStack {
-                Picker("Filter", selection: $timeFilter) {
-                    ForEach(TimeFilter.allCases) { filter in
-                        Text(filter.rawValue).tag(filter)
+        VStack(spacing: 0) {
+            // Enhanced header section with background
+            VStack(spacing: 16) {
+                // Time period selector with enhanced styling
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Image(systemName: "calendar")
+                            .foregroundColor(.blue)
+                        Text("Time Period")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        Spacer()
+                    }
+                    
+                    Picker("Filter", selection: $timeFilter) {
+                        ForEach(TimeFilter.allCases) { filter in
+                            Text(filter.rawValue).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .onChange(of: timeFilter) { oldValue, newValue in
+                        updateDateRange(for: newValue)
                     }
                 }
-                .pickerStyle(.segmented)
-                .onChange(of: timeFilter) { oldValue, newValue in
-                    updateDateRange(for: newValue)
+                .padding(.horizontal, 20)
+                
+                // Enhanced date range navigation
+                if timeFilter != .allTime {
+                    VStack(spacing: 12) {
+                        HStack {
+                            Button(action: {
+                                navigateDate(forward: false)
+                            }) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.blue.opacity(0.1))
+                                    .clipShape(Circle())
+                            }
+                            
+                            Spacer()
+                            
+                            VStack(spacing: 2) {
+                                Text(dateTitle)
+                                    .font(.headline)
+                                    .fontWeight(.semibold)
+                                Text(timeFilter.rawValue)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                navigateDate(forward: true)
+                            }) {
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.blue.opacity(0.1))
+                                    .clipShape(Circle())
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        
+                        // Summary stats for the period
+                        if !displayWorkouts.isEmpty {
+                            HStack(spacing: 24) {
+                                StatCard(
+                                    icon: "calendar.badge.plus",
+                                    title: "Days",
+                                    value: "\(displayWorkouts.keys.count)",
+                                    color: .green
+                                )
+                                
+                                StatCard(
+                                    icon: "dumbbell.fill",
+                                    title: "Workouts",
+                                    value: "\(displayWorkouts.values.flatMap { $0 }.count)",
+                                    color: .blue
+                                )
+                                
+                                StatCard(
+                                    icon: "chart.bar.fill",
+                                    title: "Total Sets",
+                                    value: "\(displayWorkouts.values.flatMap { $0 }.reduce(0) { $0 + $1.setEntries.count })",
+                                    color: .orange
+                                )
+                            }
+                            .padding(.horizontal, 20)
+                        }
+                    }
                 }
-                .padding(.horizontal)
             }
+            .padding(.vertical, 16)
+            .background(Color(.systemGroupedBackground))
             
-            // Date range navigation
-            if timeFilter != .allTime {
-                HStack {
-                    Button(action: {
-                        navigateDate(forward: false)
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .padding(8)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                    }
-                    
-                    Spacer()
-                    
-                    Text(dateTitle)
-                        .font(.headline)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        navigateDate(forward: true)
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .padding(8)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-            }
-            
-            // Workout list
+            // Workout list with enhanced styling
             if displayWorkouts.isEmpty {
+                Spacer()
                 ContentUnavailableView(
                     "No Workouts",
                     systemImage: "dumbbell",
                     description: Text("No workouts found in this time period")
                 )
-                .padding(.top, 50)
+                Spacer()
             } else {
                 List {
                     ForEach(displayWorkouts.keys.sorted().reversed(), id: \.self) { day in
@@ -119,14 +172,20 @@ struct WorkoutHistoryListView: View {
                             NavigationLink {
                                 DailyWorkoutsView(date: day)
                             } label: {
-                                DailySummaryRow(date: day, workouts: workouts)
+                                EnhancedDailySummaryRow(date: day, workouts: workouts)
                             }
+                            .listRowBackground(Color(.systemBackground))
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                         }
                     }
                 }
+                .listStyle(.plain)
+                .background(Color(.systemGroupedBackground))
             }
         }
         .navigationTitle("Workout History")
+        .navigationBarTitleDisplayMode(.large)
         .onAppear {
             updateDateRange(for: timeFilter)
         }
@@ -224,6 +283,143 @@ struct DailySummaryRow: View {
             }
         }
         .padding(.vertical, 4)
+    }
+}
+
+// StatCard component for displaying summary statistics
+struct StatCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 32, height: 32)
+                .background(color.opacity(0.1))
+                .clipShape(Circle())
+            
+            VStack(spacing: 2) {
+                Text(value)
+                    .font(.headline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+}
+
+// Enhanced daily summary row with better visual design
+struct EnhancedDailySummaryRow: View {
+    let date: Date
+    let workouts: [WorkoutRecord]
+    
+    var totalSets: Int {
+        workouts.reduce(0) { $0 + $1.setEntries.count }
+    }
+    
+    var totalVolume: Double {
+        workouts.reduce(0.0) { $0 + $1.totalVolume }
+    }
+    
+    var exercises: String {
+        let exerciseNames = workouts.compactMap { $0.exerciseDefinition?.name }
+        if exerciseNames.isEmpty {
+            return "No exercises"
+        }
+        return exerciseNames.prefix(2).joined(separator: ", ") + (exerciseNames.count > 2 ? "..." : "")
+    }
+    
+    var dayOfWeek: String {
+        date.formatted(.dateTime.weekday(.wide))
+    }
+    
+    var dayAndMonth: String {
+        date.formatted(.dateTime.day().month(.abbreviated))
+    }
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Date section with circular background
+            VStack(spacing: 4) {
+                Text(dayOfWeek)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fontWeight(.medium)
+                
+                Text(dayAndMonth)
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
+            }
+            .frame(width: 60)
+            
+            // Workout summary
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "dumbbell.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.blue)
+                    
+                    Text("\(workouts.count) workout\(workouts.count == 1 ? "" : "s")")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    Spacer()
+                    
+                    Text("\(totalSets) sets")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color(.systemGray5))
+                        .clipShape(Capsule())
+                }
+                
+                Text(exercises)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                
+                if totalVolume > 0 {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chart.bar.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.orange)
+                        
+                        Text("Volume: \(totalVolume, format: .number.precision(.fractionLength(1))) kg")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Chevron
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 16)
+        .background(Color(.systemBackground))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
 }
 

@@ -1,7 +1,7 @@
 # StrengthLog: Technical Documentation
 
-**Version:** 2.1 (Post-Bodyweight Exercise Support & Navigation Improvements)
-**Date:** December 2024
+**Version:** 2.3 (Post-Dark Mode & Theme System Implementation)
+**Date:** January 2025
 **Document Purpose:** This document provides a comprehensive technical overview of the StrengthLog iOS application, intended for development teams, new developers onboarding to the project, or for future maintenance and enhancement purposes.
 
 ## 1. Introduction
@@ -46,6 +46,21 @@ StrengthLog primarily follows a declarative UI pattern driven by SwiftUI. While 
 ## 3. Data Models (SwiftData)
 
 All data models are located in the `Models/` directory.
+
+### 3.0. `AppSettings.swift` (Version 2.3)
+
+- **Purpose:** Stores user preferences and app settings, particularly theme and display preferences.
+- **Fields:**
+  - `id: UUID` (Primary key, unique)
+  - `themeMode: ThemeMode` (Enum: `.light`, `.dark`, `.system`)
+  - `accentColor: AppAccentColor` (Enum with 8 color options: `.blue`, `.green`, `.orange`, `.red`, `.purple`, `.pink`, `.indigo`, `.teal`)
+  - `showAdvancedStats: Bool` (Toggle for advanced statistics display)
+  - `defaultWeightUnit: WeightUnit` (Enum: `.kg`, `.lbs`)
+- **Initialization:** `init(themeMode: ThemeMode = .system, accentColor: AppAccentColor = .blue, showAdvancedStats: Bool = true, defaultWeightUnit: WeightUnit = .kg)`
+- **Enums:**
+  - `ThemeMode`: Provides `colorScheme` computed property for SwiftUI integration
+  - `AppAccentColor`: Provides `color` computed property returning SwiftUI `Color` values
+  - `WeightUnit`: For future weight unit preferences
 
 ### 3.1. `ExerciseDefinition.swift`
 
@@ -109,8 +124,10 @@ All data models are located in the `Models/` directory.
 ## 4. Core Application (`StrengthLogApp.swift`)
 
 - Standard SwiftUI App entry point, sets up and injects the SwiftData `ModelContainer`.
-- Schema includes `ExerciseDefinition`, `WorkoutRecord`, and `SetEntry`.
+- **Updated Schema (Version 2.3):** Includes `ExerciseDefinition`, `WorkoutRecord`, `SetEntry`, and `AppSettings`.
+- **Theme Integration:** Uses `ThemeAwareContentView` wrapper to apply user theme preferences.
 - No initial data preloading; users start with a blank slate.
+- **Theme-Aware Architecture:** Automatic theme detection and application based on user preferences.
 
 ## 5. User Interface (SwiftUI Views)
 
@@ -119,7 +136,7 @@ All data models are located in the `Models/` directory.
 - **Purpose:** Main navigation screen, lists exercises, and provides links to features.
 - **Navigation:** Uses `NavigationStack` for proper back button behavior throughout the app.
 - **Functionality:**
-  - Links to `WorkoutHistoryListView`, `ProgressChartsView`, `DataManagementView`.
+  - Links to `WorkoutHistoryListView`, `ProgressChartsView`, `DataManagementView`, and **Settings** (Version 2.3).
   - Lists `ExerciseDefinition`s, allowing addition (with name prompt), editing (name via context menu), and deletion (swipe-to-delete).
   - Each exercise navigates to `ExerciseDetailView` with NavigationLink support for workout sessions.
 
@@ -208,19 +225,46 @@ All data models are located in the `Models/` directory.
   - Interactive SwiftUI `Chart` displaying trends.
   - Handles empty states.
 
-### 5.8. `Views/DataManagementView.swift`
+### 5.8. `Views/SettingsView.swift` (Version 2.3)
+
+- **Purpose:** Comprehensive settings interface for theme preferences and app configuration.
+- **Key Features:**
+  - **Theme Mode Selection:** Segmented picker for Light, Dark, or System theme modes with visual icons.
+  - **Accent Color Picker:** 3x3 grid of color options with visual feedback and selection indicators.
+  - **Advanced Statistics Toggle:** Option to enable/disable advanced statistics display.
+  - **Weight Unit Preference:** Future-ready setting for kg/lbs preference.
+  - **App Information:** Version display and about section.
+- **Navigation:** Uses `NavigationStack` with proper title and styling.
+- **Integration:** Direct integration with `ThemeManager` for immediate theme application.
+
+### 5.9. `Views/DataManagementView.swift`
 
 - **Purpose:** Allows JSON export/import of all data and clearing all data.
-- **Enhanced Functionality:**
-  - **Updated Export/Import:** Full support for optional weight in JSON structures.
+- **Enhanced Functionality (Version 2.3):**
+  - **Updated Export/Import:** Full support for optional weight in JSON structures and `AppSettings` integration.
+  - **Settings Persistence:** Theme preferences included in export/import operations.
   - `.fileExporter` for JSON export with bodyweight exercise compatibility.
   - `.fileImporter` for JSON import (replaces existing data) with backward compatibility.
   - Confirmation alert for clearing all data.
   - Displays database statistics.
 
-### 5.9. `AppIcon.swift` & `Views/AppIconPreviewView.swift`
+### 5.10. `AppIcon.swift` & `Views/AppIconPreviewView.swift`
 
 - Programmatic design of the app icon and a preview view for it.
+
+### 5.11. `Utilities/ThemeManager.swift` (Version 2.3)
+
+- **Purpose:** Centralized theme management utility providing reactive theme updates throughout the app.
+- **Architecture:** `ObservableObject` pattern with SwiftData integration for persistent theme preferences.
+- **Key Features:**
+  - **Reactive Updates:** Automatic UI updates when theme preferences change.
+  - **Environment Integration:** Available app-wide via SwiftUI environment values.
+  - **Convenience Methods:** Easy-to-use functions for updating theme preferences.
+  - **Theme-Aware Components:** Provides computed properties for current theme settings.
+- **Environment Integration:**
+  - `ThemeManagerKey`: Environment key for dependency injection.
+  - `ThemeAware` view modifier for consistent theme application.
+  - Global access via `@Environment(\.themeManager)`.
 
 ## 6. Key Functionalities & Features
 
@@ -319,7 +363,47 @@ All data models are located in the `Models/` directory.
 - **App Icon:** Custom `AppIcon.swift` for design. Rasterized assets needed for `Assets.xcassets`.
 - **Deployment:** Standard App Store submission.
 
-## 12. Recent Updates (Version 2.2)
+## 12. Recent Updates (Version 2.3)
+
+### 12.1. Dark Mode & Theme System Implementation
+
+- **New Data Model:** Added `AppSettings` model with `ThemeMode`, `AppAccentColor`, and preference storage.
+- **Theme Management:** Implemented centralized `ThemeManager` with reactive updates and environment integration.
+- **Settings Interface:** Created comprehensive `SettingsView` with theme customization options.
+- **App Integration:** Updated main app with theme-aware wrapper and automatic theme application.
+- **Data Persistence:** Extended export/import functionality to include theme preferences.
+- **User Experience:**
+  - **Three Theme Modes:** Light, Dark, System (follows device setting)
+  - **Eight Accent Colors:** Blue, Green, Orange, Red, Purple, Pink, Indigo, Teal
+  - **Immediate Application:** Theme changes apply instantly without app restart
+  - **Persistent Preferences:** All settings automatically saved and restored
+
+### 12.2. Comprehensive UI Enhancement Implementation
+
+- **Visual Design Transformation:** Complete overhaul of the application interface from functional but plain to modern and visually appealing while maintaining core simplicity.
+- **Component Architecture:** Implemented reusable UI components for consistent design across all views:
+  - `FeatureRowView` and `ExerciseRowView` for ContentView
+  - `StatCard` for workout history statistics
+  - `EnhancedDailySummaryRow` for daily workout summaries
+  - `ProgressStatCard` for progress chart statistics
+  - `DataStatRow` for data management statistics
+  - `DayStatCard` and `EnhancedWorkoutRow` for daily workout views
+- **Enhanced Views:**
+  - **ContentView:** Modern interface with colored feature icons, exercise count badges, and improved visual hierarchy
+  - **SettingsView:** Visual theme picker with animated color selection and enhanced layout
+  - **WorkoutHistoryListView:** Statistics cards, enhanced headers, and improved daily summary display
+  - **ProgressChartsView:** Better chart styling, progress statistics cards, and enhanced data presentation
+  - **DataManagementView:** Modern card-based layout with enhanced action buttons and data statistics
+  - **DailyWorkoutsView:** Day statistics cards and enhanced workout row display
+  - **WorkoutInputView:** Enhanced form sections with colored icons and improved input styling
+- **Design System:**
+  - **8-Point Grid System:** Consistent spacing and layout standards throughout the app
+  - **Color-Coded Interface:** Meaningful use of colors for visual communication and user guidance
+  - **SF Symbols Integration:** Contextual system icons for better visual communication
+  - **Subtle Visual Effects:** Tasteful shadows, backgrounds, and rounded corners for modern app feel
+  - **Accessibility Preservation:** All enhancements maintain iOS accessibility standards and readability
+
+## 13. Previous Updates (Version 2.2)
 
 ### 12.1. Timestamp Normalization (Version 2.2)
 
@@ -329,7 +413,7 @@ All data models are located in the `Models/` directory.
 - **Import/Export Compatibility:** Enhanced data import functions to normalize imported timestamps to midnight for consistency.
 - **Utility Functions:** Added Date extension with `midnight` property and `todayAtMidnight` static property for consistent timestamp handling throughout the app.
 
-## 13. Previous Updates (Version 2.1)
+## 14. Previous Updates (Version 2.1)
 
 ### 12.1. Bodyweight Exercise Support
 
@@ -350,7 +434,7 @@ All data models are located in the `Models/` directory.
 - **Data Migration:** Existing data with weight values continues to work seamlessly.
 - **Import Compatibility:** Can import both old (weight required) and new (weight optional) JSON formats.
 
-## 14. Future Considerations / Potential Enhancements
+## 15. Future Considerations / Potential Enhancements
 
 - **Cloud Sync (iCloud)**
 - **More Advanced Charting & Analytics**

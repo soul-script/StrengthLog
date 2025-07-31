@@ -37,122 +37,227 @@ struct ProgressChartsView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if exerciseDefinitions.isEmpty {
-                ContentUnavailableView(
-                    "No exercises available",
-                    systemImage: "chart.xyaxis.line",
-                    description: Text("Add exercises first to see your progress charts")
-                )
-            } else {
-                Picker("Select Exercise", selection: $selectedExercise) {
-                    ForEach(exerciseDefinitions, id: \.id) { exercise in
-                        Text(exercise.name).tag(Optional(exercise))
-                    }
-                }
-                .pickerStyle(.menu)
-                .padding(.horizontal)
-                .onChange(of: selectedExercise) { _, _ in
-                    // Reset selected data point when changing exercise
-                    selectedDataPoint = nil
-                }
-                .onAppear {
-                    if selectedExercise == nil, let firstExercise = exerciseDefinitions.first {
-                        selectedExercise = firstExercise
-                    }
-                }
-                
-                HStack {
-                    Picker("Chart Type", selection: $chartType) {
-                        ForEach(ChartType.allCases) { type in
-                            Text(type.rawValue).tag(type)
+        ScrollView {
+            VStack(spacing: 0) {
+                if exerciseDefinitions.isEmpty {
+                    Spacer()
+                    ContentUnavailableView(
+                        "No exercises available",
+                        systemImage: "chart.xyaxis.line",
+                        description: Text("Add exercises first to see your progress charts")
+                    )
+                    Spacer()
+                } else {
+                    // Enhanced header section
+                    VStack(spacing: 20) {
+                        // Exercise selection with enhanced styling
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: "dumbbell.fill")
+                                    .foregroundColor(.blue)
+                                Text("Exercise")
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Spacer()
+                            }
+                            
+                            Picker("Select Exercise", selection: $selectedExercise) {
+                                ForEach(exerciseDefinitions, id: \.id) { exercise in
+                                    Text(exercise.name).tag(Optional(exercise))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .accentColor(.blue)
                         }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: .infinity)
-                    
-                    Picker("Time Range", selection: $timeRange) {
-                        ForEach(TimeRange.allCases) { range in
-                            Text(range.rawValue).tag(range)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-                .padding(.horizontal)
-                .onChange(of: chartType) { _, _ in
-                    // Reset selected data point when changing chart type
-                    selectedDataPoint = nil
-                }
-                .onChange(of: timeRange) { _, _ in
-                    // Reset selected data point when changing time range
-                    selectedDataPoint = nil
-                }
-                
-                if let exercise = selectedExercise {
-                    let records = exercise.workoutRecords
-                    if !records.isEmpty {
-                        let filteredRecords = filterRecordsByTimeRange(records.sorted(by: { $0.date < $1.date }))
+                        .padding(16)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                         
-                        if filteredRecords.isEmpty {
-                            ContentUnavailableView(
-                                "No data in selected time range",
-                                systemImage: "chart.xyaxis.line",
-                                description: Text("Try selecting a different time range")
-                            )
-                        } else {
-                            // Chart container
-                            VStack(alignment: .leading, spacing: 10) {
-                                Text(chartTitle)
-                                    .font(.headline)
-                                    .padding(.horizontal)
-                                
-                                chartView(for: filteredRecords)
-                                    .frame(height: 250)
-                                    .padding(.horizontal, 8)
-                                
-                                // Selected data point information
-                                if let selected = selectedDataPoint {
-                                    HStack {
-                                        VStack(alignment: .leading) {
-                                            Text("Date: \(selected.date, format: .dateTime.day().month().year())")
-                                                .font(.subheadline)
-                                            Text("\(chartType == .oneRepMax ? "1RM" : "Volume"): \(selected.value, specifier: "%.1f")")
-                                                .font(.subheadline.bold())
-                                        }
-                                        Spacer()
-                                    }
-                                    .padding()
-                                    .background(Color(UIColor.secondarySystemBackground))
-                                    .cornerRadius(10)
-                                    .padding(.horizontal)
+                        // Chart controls with enhanced styling
+                        VStack(spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "chart.line.uptrend.xyaxis")
+                                        .foregroundColor(.green)
+                                    Text("Chart Type")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Spacer()
                                 }
                                 
-                                // Instructions
-                                Text("Tap on a data point for details")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                                    .padding(.top, 4)
+                                Picker("Chart Type", selection: $chartType) {
+                                    ForEach(ChartType.allCases) { type in
+                                        Text(type.rawValue).tag(type)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "calendar.badge.clock")
+                                        .foregroundColor(.orange)
+                                    Text("Time Range")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Spacer()
+                                }
+                                
+                                Picker("Time Range", selection: $timeRange) {
+                                    ForEach(TimeRange.allCases) { range in
+                                        Text(range.rawValue).tag(range)
+                                    }
+                                }
+                                .pickerStyle(.segmented)
                             }
                         }
-                    } else {
-                        ContentUnavailableView(
-                            "No workout records",
-                            systemImage: "chart.xyaxis.line",
-                            description: Text("Log workouts for \(exercise.name) to see progress charts")
-                        )
+                        .padding(16)
+                        .background(Color(.systemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                     }
-                } else if !exerciseDefinitions.isEmpty {
-                    Text("Please select an exercise to see progress.")
-                        .padding()
-                } else {
-                    Text("No data available.")
-                        .padding()
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .onChange(of: selectedExercise) { _, _ in
+                        selectedDataPoint = nil
+                    }
+                    .onChange(of: chartType) { _, _ in
+                        selectedDataPoint = nil
+                    }
+                    .onChange(of: timeRange) { _, _ in
+                        selectedDataPoint = nil
+                    }
+                    .onAppear {
+                        if selectedExercise == nil, let firstExercise = exerciseDefinitions.first {
+                            selectedExercise = firstExercise
+                        }
+                    }
+                
+                    // Chart section
+                    if let exercise = selectedExercise {
+                        let records = exercise.workoutRecords
+                        if !records.isEmpty {
+                            let filteredRecords = filterRecordsByTimeRange(records.sorted(by: { $0.date < $1.date }))
+                            
+                            if filteredRecords.isEmpty {
+                                VStack(spacing: 16) {
+                                    ContentUnavailableView(
+                                        "No data in selected time range",
+                                        systemImage: "chart.xyaxis.line",
+                                        description: Text("Try selecting a different time range")
+                                    )
+                                }
+                                .padding(.top, 40)
+                            } else {
+                                // Enhanced chart container
+                                VStack(spacing: 0) {
+                                    // Chart header with summary stats
+                                    VStack(spacing: 16) {
+                                        HStack {
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text(chartTitle)
+                                                    .font(.headline)
+                                                    .fontWeight(.semibold)
+                                                Text("\(filteredRecords.count) data points")
+                                                    .font(.caption)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            Spacer()
+                                        }
+                                        
+                                        // Quick stats
+                                        HStack(spacing: 16) {
+                                            ProgressStatCard(
+                                                icon: "chart.line.uptrend.xyaxis",
+                                                title: "Latest",
+                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.last?.bestOneRepMaxInSession ?? 0 : filteredRecords.last?.totalVolume ?? 0),
+                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                color: .blue
+                                            )
+                                            
+                                            ProgressStatCard(
+                                                icon: "arrow.up.right",
+                                                title: "Best",
+                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.map { $0.bestOneRepMaxInSession }.max() ?? 0 : filteredRecords.map { $0.totalVolume }.max() ?? 0),
+                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                color: .green
+                                            )
+                                            
+                                            ProgressStatCard(
+                                                icon: "chart.bar.fill",
+                                                title: "Average",
+                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.map { $0.bestOneRepMaxInSession }.reduce(0, +) / Double(filteredRecords.count) : filteredRecords.map { $0.totalVolume }.reduce(0, +) / Double(filteredRecords.count)),
+                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                color: .orange
+                                            )
+                                        }
+                                    }
+                                    .padding(20)
+                                    .background(Color(.systemBackground))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                                    .padding(.horizontal, 20)
+                                    .padding(.top, 24)
+                                    
+                                    // Chart view
+                                    VStack(spacing: 16) {
+                                        chartView(for: filteredRecords)
+                                            .frame(height: 300)
+                                            .padding(.horizontal, 8)
+                                        
+                                        // Selected data point information
+                                        if let selected = selectedDataPoint {
+                                            HStack(spacing: 12) {
+                                                Image(systemName: "info.circle.fill")
+                                                    .foregroundColor(.blue)
+                                                
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text("Data Point Details")
+                                                        .font(.subheadline)
+                                                        .fontWeight(.medium)
+                                                    Text("Date: \(selected.date, format: .dateTime.day().month().year())")
+                                                        .font(.caption)
+                                                        .foregroundColor(.secondary)
+                                                    Text("\(chartType == .oneRepMax ? "Estimated 1RM" : "Total Volume"): \(selected.value, specifier: "%.1f") \(chartType == .oneRepMax ? "kg" : "kg")")
+                                                        .font(.subheadline)
+                                                        .fontWeight(.semibold)
+                                                }
+                                                Spacer()
+                                            }
+                                            .padding(16)
+                                            .background(Color(.systemGray6))
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            .padding(.horizontal, 20)
+                                        }
+                                        
+                                        // Instructions
+                                        Text("Tap on a data point for details")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .frame(maxWidth: .infinity, alignment: .center)
+                                            .padding(.bottom, 20)
+                                    }
+                                    .padding(.top, 20)
+                                }
+                            }
+                        } else {
+                            VStack(spacing: 16) {
+                                ContentUnavailableView(
+                                    "No workout records",
+                                    systemImage: "chart.xyaxis.line",
+                                    description: Text("Log workouts for \(exercise.name) to see progress charts")
+                                )
+                            }
+                            .padding(.top, 40)
+                        }
+                    }
                 }
             }
         }
-        .padding(.vertical)
+        .background(Color(.systemGroupedBackground))
         .navigationTitle("Progress Charts")
+        .navigationBarTitleDisplayMode(.large)
     }
     
     private func filterRecordsByTimeRange(_ records: [WorkoutRecord]) -> [WorkoutRecord] {
@@ -237,6 +342,46 @@ struct ProgressChartsView: View {
                     )
             }
         }
+    }
+}
+
+// Enhanced stat card component for progress charts
+struct ProgressStatCard: View {
+    let icon: String
+    let title: String
+    let value: String
+    let unit: String
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(color)
+                .frame(width: 28, height: 28)
+                .background(color.opacity(0.1))
+                .clipShape(Circle())
+            
+            VStack(spacing: 2) {
+                Text(value)
+                    .font(.subheadline)
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Text(unit)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 8))
     }
 }
 

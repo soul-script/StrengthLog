@@ -14,7 +14,8 @@ struct StrengthLogApp: App {
         let schema = Schema([
             ExerciseDefinition.self,
             WorkoutRecord.self,
-            SetEntry.self
+            SetEntry.self,
+            AppSettings.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -27,9 +28,23 @@ struct StrengthLogApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ThemeAwareContentView()
         }
         .modelContainer(sharedModelContainer)
+    }
+}
+
+struct ThemeAwareContentView: View {
+    @Query var settings: [AppSettings]
+    
+    private var currentSettings: AppSettings? {
+        settings.first
+    }
+    
+    var body: some View {
+        ContentView()
+            .preferredColorScheme(currentSettings?.themeMode.colorScheme)
+            .tint(currentSettings?.accentColor.color ?? .blue)
     }
 }
 
