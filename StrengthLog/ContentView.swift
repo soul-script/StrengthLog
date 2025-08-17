@@ -393,15 +393,19 @@ struct ExerciseDetailView: View {
         VStack(spacing: 0) {
             if !exercise.workoutRecords.isEmpty {
                 // Enhanced summary card for best performance metrics
-                VStack(spacing: 16) {
-                    HStack {
-                        Image(systemName: "trophy.fill")
-                            .foregroundColor(.orange)
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Personal Records")
-                            .font(.system(size: 18, weight: .semibold))
-                        Spacer()
-                    }
+                NavigationLink(destination: PRHistoryView(exercise: exercise)) {
+                    VStack(spacing: 16) {
+                        HStack {
+                            Image(systemName: "trophy.fill")
+                                .foregroundColor(.orange)
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Personal Records")
+                                .font(.system(size: 18, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Color(.tertiaryLabel))
+                        }
                     .padding(.top, 20)
                     .padding(.horizontal, 20)
                     
@@ -471,6 +475,7 @@ struct ExerciseDetailView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 20)
                 }
+                .buttonStyle(PlainButtonStyle()) // Make the whole card tappable
                 .background(
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color(UIColor.secondarySystemBackground))

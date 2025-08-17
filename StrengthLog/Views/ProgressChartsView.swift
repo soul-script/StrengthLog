@@ -12,6 +12,9 @@ struct ProgressChartsView: View {
     enum ChartType: String, CaseIterable, Identifiable {
         case oneRepMax = "1RM"
         case volume = "Volume"
+        case totalReps = "Reps"
+        case totalSets = "Sets"
+        case averageWeight = "Avg. Weight"
         
         var id: String { self.rawValue }
     }
@@ -171,24 +174,24 @@ struct ProgressChartsView: View {
                                             ProgressStatCard(
                                                 icon: "chart.line.uptrend.xyaxis",
                                                 title: "Latest",
-                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.last?.bestOneRepMaxInSession ?? 0 : filteredRecords.last?.totalVolume ?? 0),
-                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                value: String(format: "%.1f", value(for: filteredRecords.last ?? WorkoutRecord(), type: chartType)),
+                                                unit: yAxisLabel(for: chartType),
                                                 color: .blue
                                             )
                                             
                                             ProgressStatCard(
                                                 icon: "arrow.up.right",
                                                 title: "Best",
-                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.map { $0.bestOneRepMaxInSession }.max() ?? 0 : filteredRecords.map { $0.totalVolume }.max() ?? 0),
-                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                value: String(format: "%.1f", filteredRecords.map { value(for: $0, type: chartType) }.max() ?? 0),
+                                                unit: yAxisLabel(for: chartType),
                                                 color: .green
                                             )
                                             
                                             ProgressStatCard(
                                                 icon: "chart.bar.fill",
                                                 title: "Average",
-                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.map { $0.bestOneRepMaxInSession }.reduce(0, +) / Double(filteredRecords.count) : filteredRecords.map { $0.totalVolume }.reduce(0, +) / Double(filteredRecords.count)),
-                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                value: String(format: "%.1f", filteredRecords.map { value(for: $0, type: chartType) }.reduce(0, +) / Double(filteredRecords.count)),
+                                                unit: yAxisLabel(for: chartType),
                                                 color: .orange
                                             )
                                         }
@@ -219,7 +222,7 @@ struct ProgressChartsView: View {
                                                     Text("Date: \(selected.date, format: .dateTime.day().month().year())")
                                                         .font(.caption)
                                                         .foregroundColor(.secondary)
-                                                    Text("\(chartType == .oneRepMax ? "Estimated 1RM" : "Total Volume"): \(selected.value, specifier: "%.1f") \(chartType == .oneRepMax ? "kg" : "kg")")
+                                                    Text("\(yAxisLabel(for: chartType)): \(selected.value, specifier: "%.1f")")
                                                         .font(.subheadline)
                                                         .fontWeight(.semibold)
                                                 }
@@ -269,9 +272,41 @@ struct ProgressChartsView: View {
         return records.filter { $0.date >= cutoffDate }
     }
     
+    private func value(for record: WorkoutRecord, type: ChartType) -> Double {
+        switch type {
+        case .oneRepMax:
+            return record.bestOneRepMaxInSession
+        case .volume:
+            return record.totalVolume
+        case .totalReps:
+            return Double(record.totalReps)
+        case .totalSets:
+            return Double(record.totalSets)
+        case .averageWeight:
+            return record.averageWeight
+        }
+    }
+
+    private func yAxisLabel(for type: ChartType) -> String {
+        switch type {
+        case .oneRepMax: return "Est. 1RM (kg)"
+        case .volume: return "Volume (kg)"
+        case .totalReps: return "Total Reps"
+        case .totalSets: return "Total Sets"
+        case .averageWeight: return "Avg. Weight (kg)"
+        }
+    }
+
     private var chartTitle: String {
         guard let exercise = selectedExercise else { return "" }
-        let typeLabel = chartType == .oneRepMax ? "Estimated 1RM Trend" : "Training Volume Trend"
+        let typeLabel: String
+        switch chartType {
+        case .oneRepMax: typeLabel = "Estimated 1RM Trend"
+        case .volume: typeLabel = "Training Volume Trend"
+        case .totalReps: typeLabel = "Total Reps Trend"
+        case .totalSets: typeLabel = "Total Sets Trend"
+        case .averageWeight: typeLabel = "Average Weight Trend"
+        }
         return "\(typeLabel) for \(exercise.name) (\(timeRange.rawValue))"
     }
     
@@ -279,23 +314,30 @@ struct ProgressChartsView: View {
     private func chartView(for records: [WorkoutRecord]) -> some View {
         Chart {
             ForEach(records) { record in
-                let yValue = chartType == .oneRepMax ? record.bestOneRepMaxInSession : record.totalVolume
+                let yValue = value(for: record, type: chartType)
                 
                 LineMark(
                     x: .value("Date", record.date),
-                    y: .value(chartType == .oneRepMax ? "Est. 1RM" : "Volume", yValue)
+                    y: .value(yAxisLabel(for: chartType), yValue)
                 )
-                .foregroundStyle(chartType == .oneRepMax ? Color.blue : Color.green)
+                .foregroundStyle(by: .value("Type", chartType.rawValue))
                 .interpolationMethod(.catmullRom)
                 
                 PointMark(
                     x: .value("Date", record.date),
-                    y: .value(chartType == .oneRepMax ? "Est. 1RM" : "Volume", yValue)
+                    y: .value(yAxisLabel(for: chartType), yValue)
                 )
-                .foregroundStyle(chartType == .oneRepMax ? Color.blue : Color.green)
+                .foregroundStyle(by: .value("Type", chartType.rawValue))
                 .symbolSize(selectedDataPoint?.date == record.date ? 150 : 100)
             }
         }
+        .chartForegroundStyleScale([
+            "1RM": Color.blue,
+            "Volume": Color.green,
+            "Reps": Color.purple,
+            "Sets": Color.pink,
+            "Avg. Weight": Color.orange
+        ])
         .chartXAxis {
             AxisMarks(values: .automatic) { value in
                 AxisGridLine()
@@ -335,8 +377,8 @@ struct ProgressChartsView: View {
                                 }
                                 
                                 if let record = closestRecord {
-                                    let value = chartType == .oneRepMax ? record.bestOneRepMaxInSession : record.totalVolume
-                                    selectedDataPoint = (date: record.date, value: value)
+                                    let yValue = value(for: record, type: chartType)
+                                    selectedDataPoint = (date: record.date, value: yValue)
                                 }
                             }
                     )
