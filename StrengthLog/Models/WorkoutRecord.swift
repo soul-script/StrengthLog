@@ -36,4 +36,19 @@ extension WorkoutRecord {
         guard !weightedSets.isEmpty else { return 0.0 }
         return weightedSets.reduce(0.0) { max($0, $1.calculatedOneRepMax) }
     }
+
+    var totalReps: Int {
+        setEntries.reduce(0) { $0 + $1.reps }
+    }
+
+    var totalSets: Int {
+        setEntries.count
+    }
+
+    var averageWeight: Double {
+        let weightedSets = setEntries.filter { $0.weight != nil }
+        guard !weightedSets.isEmpty else { return 0.0 }
+        let totalWeight = weightedSets.reduce(0) { $0 + ($1.weight ?? 0) }
+        return totalWeight / Double(weightedSets.count)
+    }
 } 
