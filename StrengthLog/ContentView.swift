@@ -565,7 +565,7 @@ struct ExerciseDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        ZStack {
             List {
                 Section(header: HStack {
                     Image(systemName: "trophy.fill").foregroundColor(.orange)
@@ -610,43 +610,37 @@ struct ExerciseDetailView: View {
                 }
             }
             .listStyle(PlainListStyle())
-            .alert("Delete Workout", isPresented: $showingDeleteConfirmation) {
-                Button("Cancel", role: .cancel) { workoutToDelete = nil }
-                Button("Delete", role: .destructive) {
-                    if let workout = workoutToDelete {
-                        deleteWorkout(workout)
-                        workoutToDelete = nil
-                    }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button(action: { showingAddWorkoutSheet = true }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                    Text("Add Workout")
+                        .font(.system(size: 16, weight: .semibold))
                 }
-            } message: {
-                Text("Are you sure you want to delete this workout? This action cannot be undone.")
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 50)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.accentColor)
+                        .shadow(color: Color.accentColor.opacity(0.3), radius: 4, x: 0, y: 2)
+                )
             }
-            
-            // Enhanced floating action button
-            VStack {
-                Spacer()
-                
-                Button(action: {
-                    showingAddWorkoutSheet = true
-                }) {
-                    HStack(spacing: 8) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 16, weight: .semibold))
-                        Text("Add Workout")
-                            .font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.accentColor)
-                            .shadow(color: Color.accentColor.opacity(0.3), radius: 4, x: 0, y: 2)
-                    )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+        }
+        .alert("Delete Workout", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { workoutToDelete = nil }
+            Button("Delete", role: .destructive) {
+                if let workout = workoutToDelete {
+                    deleteWorkout(workout)
+                    workoutToDelete = nil
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
             }
+        } message: {
+            Text("Are you sure you want to delete this workout? This action cannot be undone.")
         }
         .navigationTitle(exercise.name)
         .navigationBarTitleDisplayMode(.inline)

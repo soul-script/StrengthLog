@@ -22,6 +22,7 @@ struct DataManagementView: View {
     @State private var showingError = false
     @State private var errorMessage = ""
     @State private var showingClearConfirmation = false
+    @State private var showingSeedSuccess = false
     
     var body: some View {
         ScrollView {
@@ -176,6 +177,29 @@ struct DataManagementView: View {
                                 RoundedRectangle(cornerRadius: 12)
                                     .stroke(Color.purple.opacity(0.25), lineWidth: 1)
                             )
+                        }
+
+                        Button(action: restoreReferenceData) {
+                            HStack(spacing: 12) {
+                                Image(systemName: "arrow.clockwise.circle")
+                                    .font(.system(size: 16, weight: .medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Restore Reference Data")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("Adds any missing categories and muscles")
+                                        .font(.caption)
+                                        .opacity(0.8)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.purple)
+                            .padding(16)
+                            .background(Color.purple.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                     }
                 }
@@ -348,6 +372,11 @@ struct DataManagementView: View {
         } message: {
             Text("Your data has been successfully imported.")
         }
+        .alert("Reference Data Restored", isPresented: $showingSeedSuccess) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Reference data has been restored or was already complete.")
+        }
         .alert("Error", isPresented: $showingError) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -366,7 +395,17 @@ struct DataManagementView: View {
     private func exportData() {
         isExporting = true
     }
-    
+
+    private func restoreReferenceData() {
+        do {
+            try ReferenceDataSeeder(context: modelContext).seedIfNeeded()
+            showingSeedSuccess = true
+        } catch {
+            errorMessage = "Failed to restore reference data: \(error.localizedDescription)"
+            showingError = true
+        }
+    }
+
     private func clearAllData() {
         // Delete exercises first (cascades to workouts, sets, and contributions)
         for exercise in exercises { modelContext.delete(exercise) }

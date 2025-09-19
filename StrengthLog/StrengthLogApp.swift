@@ -36,12 +36,7 @@ struct StrengthLogApp: App {
 
     @MainActor
     init() {
-        do {
-            try ReferenceDataSeeder(context: sharedModelContainer.mainContext).seedIfNeeded()
-        } catch {
-            Self.bootstrapLogger.error("Failed to seed reference data: \(error.localizedDescription, privacy: .public)")
-            assertionFailure("Failed to seed reference data: \(error)")
-        }
+        // Seeding is optional and user-controlled; run from a view-layer gate for safety.
     }
 
     var body: some Scene {
@@ -65,3 +60,4 @@ struct ThemeAwareContentView: View {
             .tint(currentSettings?.accentColor.color ?? .blue)
     }
 }
+
