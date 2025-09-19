@@ -148,3 +148,8 @@ test_output/
 
 **/.cursor/**
 StrengthLog_Focused_Enhancement_Plan.md
+
+## Ignore everything
+# **/*
+**/.idea/**
+**/.github/**
