@@ -388,7 +388,18 @@ struct WorkoutInputView: View {
 #Preview {
     // Create a dummy ExerciseDefinition for the preview
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+    let container = try! ModelContainer(
+        for: ExerciseDefinition.self,
+             WorkoutRecord.self,
+             SetEntry.self,
+             AppSettings.self,
+             MajorMuscleGroup.self,
+             SpecificMuscle.self,
+             WorkoutCategoryTag.self,
+             ExerciseMajorContribution.self,
+             ExerciseSpecificContribution.self,
+        configurations: config
+    )
     let exampleExercise = ExerciseDefinition(name: "Bench Press")
     // It's important to insert the exampleExercise into the context if WorkoutInputView or its children might try to use its modelContext.
     // However, for this specific preview, WorkoutInputView primarily uses the passed exerciseDefinition for its name and to link upon saving.

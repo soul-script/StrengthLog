@@ -431,7 +431,18 @@ struct WorkoutSessionDetailView: View {
     // Group all setup logic
     let (record, container) = {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+        let container = try! ModelContainer(
+            for: ExerciseDefinition.self,
+                 WorkoutRecord.self,
+                 SetEntry.self,
+                 AppSettings.self,
+                 MajorMuscleGroup.self,
+                 SpecificMuscle.self,
+                 WorkoutCategoryTag.self,
+                 ExerciseMajorContribution.self,
+                 ExerciseSpecificContribution.self,
+            configurations: config
+        )
         let exercise = ExerciseDefinition(name: "Bench Press")
         let record = WorkoutRecord(date: Date(), exerciseDefinition: exercise)
         let set1 = SetEntry(weight: 80, reps: 8, workoutRecord: record)

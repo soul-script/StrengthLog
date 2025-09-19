@@ -10,12 +10,16 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var exercises: [ExerciseDefinition]
+    @Query(sort: \ExerciseDefinition.name) private var exercises: [ExerciseDefinition]
+    @Query(sort: \WorkoutCategoryTag.name) private var categoryTags: [WorkoutCategoryTag]
+    @Query(sort: \MajorMuscleGroup.name) private var majorMuscleGroups: [MajorMuscleGroup]
     @State private var selectedExercise: ExerciseDefinition? = nil
-    @State private var isEditingExerciseName: Bool = false
-    @State private var editingName: String = ""
-    @State private var isAddingExercise: Bool = false
-    @State private var newExerciseName: String = ""
+    @State private var activeCategoryFilters: Set<UUID> = []
+    @State private var activeMajorGroupFilter: UUID? = nil
+    @State private var isPresentingExerciseEditor = false
+    @State private var editorMode: ExerciseEditorView.Mode = .create
+    @State private var exerciseToDelete: ExerciseDefinition? = nil
+    @State private var showingExerciseDeleteConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -53,6 +57,9 @@ struct ContentView: View {
                         destination: AnyView(SettingsView())
                     )
                 }
+                if !categoryTags.isEmpty || !majorMuscleGroups.isEmpty {
+                    filtersSection
+                }
                 
                 Section(header: HStack {
                     Text("My Exercises")
@@ -60,7 +67,7 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("\(exercises.count)")
+                    Text("\(filteredExercises.count)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
@@ -68,20 +75,26 @@ struct ContentView: View {
                         .background(Color.secondary.opacity(0.2))
                         .clipShape(Capsule())
                 }) {
-                    ForEach(exercises) { exercise in
+                    if filteredExercises.isEmpty {
+                        Text(isFilterActive ? "No exercises match the current filters." : "No exercises available yet.")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .padding(.vertical, 8)
+                    }
+
+                    ForEach(filteredExercises) { exercise in
                         NavigationLink {
                             ExerciseDetailView(exercise: exercise)
                         } label: {
                             ExerciseRowView(exercise: exercise)
-                                .contextMenu {
-                                    Button(action: {
-                                        selectedExercise = exercise
-                                        editingName = exercise.name
-                                        isEditingExerciseName = true
-                                    }) {
-                                        Label("Edit Name", systemImage: "pencil")
-                                    }
-                                }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button(role: .destructive) {
+                                exerciseToDelete = exercise
+                                showingExerciseDeleteConfirmation = true
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
                         }
                     }
                     .onDelete(perform: deleteExercise)
@@ -98,81 +111,145 @@ struct ContentView: View {
                     }
                 }
             }
-            .sheet(isPresented: $isEditingExerciseName) {
-                NavigationStack {
-                    Form {
-                        Section(header: Text("Edit Exercise Name")) {
-                            TextField("Exercise Name", text: $editingName)
-                                .textInputAutocapitalization(.words)
-                        }
-                    }
-                    .navigationTitle("Edit Exercise")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Cancel") {
-                                isEditingExerciseName = false
-                            }
-                        }
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Save") {
-                                if let exercise = selectedExercise {
-                                    exercise.name = editingName
-                                }
-                                isEditingExerciseName = false
-                            }
-                            .disabled(editingName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
+            .alert("Delete Exercise", isPresented: $showingExerciseDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { exerciseToDelete = nil }
+                Button("Delete", role: .destructive) {
+                    if let exercise = exerciseToDelete {
+                        modelContext.delete(exercise)
+                        do { try modelContext.save() } catch { }
+                        exerciseToDelete = nil
                     }
                 }
+            } message: {
+                Text("Are you sure you want to delete this exercise? This action cannot be undone.")
             }
-            .sheet(isPresented: $isAddingExercise) {
+            .sheet(isPresented: $isPresentingExerciseEditor) {
                 NavigationStack {
-                    Form {
-                        Section(header: Text("New Exercise Name")) {
-                            TextField("Exercise Name", text: $newExerciseName)
-                                .textInputAutocapitalization(.words)
-                        }
-                    }
-                    .navigationTitle("Add Exercise")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) {
-                            Button("Cancel") {
-                                newExerciseName = ""
-                                isAddingExercise = false
-                            }
-                        }
-                        ToolbarItem(placement: .navigationBarTrailing) {
-                            Button("Save") {
-                                addExercise(name: newExerciseName)
-                                newExerciseName = ""
-                                isAddingExercise = false
-                            }
-                            .disabled(newExerciseName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        }
-                    }
+                    ExerciseEditorView(mode: editorMode, exercise: editorMode == .edit ? selectedExercise : nil)
                 }
             }
         }
     }
 
     private func promptForNewExercise() {
-        newExerciseName = ""
-        isAddingExercise = true
+        selectedExercise = nil
+        editorMode = .create
+        isPresentingExerciseEditor = true
     }
 
-    private func addExercise(name: String) {
-        withAnimation {
-            let newExercise = ExerciseDefinition(name: name)
-            modelContext.insert(newExercise)
+    private var filteredExercises: [ExerciseDefinition] {
+        exercises.filter { exercise in
+            let matchesCategory: Bool
+            if activeCategoryFilters.isEmpty {
+                matchesCategory = true
+            } else {
+                let exerciseCategoryIDs = Set(exercise.categories.map { $0.id })
+                matchesCategory = !exerciseCategoryIDs.isDisjoint(with: activeCategoryFilters)
+            }
+
+            let matchesMajor: Bool
+            if let majorID = activeMajorGroupFilter {
+                matchesMajor = exercise.majorContributions.contains { $0.majorGroup?.id == majorID }
+            } else {
+                matchesMajor = true
+            }
+
+            return matchesCategory && matchesMajor
         }
+    }
+
+    private var isFilterActive: Bool {
+        !activeCategoryFilters.isEmpty || activeMajorGroupFilter != nil
+    }
+
+    private var filtersSection: some View {
+        Section(header: Text("Filters").textCase(.uppercase).font(.subheadline).foregroundColor(.secondary)) {
+            if !categoryTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(categoryTags) { category in
+                            let isSelected = activeCategoryFilters.contains(category.id)
+                            Button {
+                                toggleCategoryFilter(category)
+                            } label: {
+                                Text(category.name)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(isSelected ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.15))
+                                    .foregroundColor(isSelected ? Color.accentColor : .primary)
+                                    .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 4)
+                }
+                .padding(.vertical, 4)
+            }
+
+            if !majorMuscleGroups.isEmpty {
+                Menu {
+                    Button("All Groups") { activeMajorGroupFilter = nil }
+                    ForEach(majorMuscleGroups) { group in
+                        Button(action: { activeMajorGroupFilter = group.id }) {
+                            if activeMajorGroupFilter == group.id {
+                                Label(group.name, systemImage: "checkmark")
+                            } else {
+                                Text(group.name)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack {
+                        Image(systemName: "line.3.horizontal.decrease")
+                        Text(activeMajorGroupName)
+                        Spacer()
+                        Image(systemName: "chevron.down")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.secondarySystemBackground))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+            }
+
+            if isFilterActive {
+                Button("Clear Filters", role: .cancel, action: clearFilters)
+                    .font(.footnote)
+            }
+        }
+    }
+
+    private var activeMajorGroupName: String {
+        guard let majorID = activeMajorGroupFilter, let group = majorMuscleGroups.first(where: { $0.id == majorID }) else {
+            return "All Muscle Groups"
+        }
+        return group.name
+    }
+
+    private func toggleCategoryFilter(_ category: WorkoutCategoryTag) {
+        if activeCategoryFilters.contains(category.id) {
+            activeCategoryFilters.remove(category.id)
+        } else {
+            activeCategoryFilters.insert(category.id)
+        }
+    }
+
+    private func clearFilters() {
+        activeCategoryFilters.removeAll()
+        activeMajorGroupFilter = nil
     }
 
     private func deleteExercise(offsets: IndexSet) {
         withAnimation {
+            let currentFiltered = filteredExercises
             for index in offsets {
-                modelContext.delete(exercises[index])
+                guard index < currentFiltered.count else { continue }
+                modelContext.delete(currentFiltered[index])
             }
         }
     }
@@ -231,6 +308,19 @@ struct ExerciseRowView: View {
     private var lastWorkoutDate: Date? {
         exercise.workoutRecords.max(by: { $0.date < $1.date })?.date
     }
+
+    private var primaryContribution: (name: String, percent: Int)? {
+        guard let topContribution = exercise.majorContributions.max(by: { $0.share < $1.share }),
+              let groupName = topContribution.majorGroup?.name
+        else { return nil }
+        return (groupName, topContribution.share)
+    }
+
+    private var categoryNames: [String] {
+        exercise.categories
+            .sorted(by: { $0.name < $1.name })
+            .map { $0.name }
+    }
     
     var body: some View {
         HStack(spacing: 12) {
@@ -266,6 +356,31 @@ struct ExerciseRowView: View {
                             .font(.system(size: 12))
                             .foregroundColor(.secondary)
                             .italic()
+                    }
+                }
+
+                if let primary = primaryContribution {
+                    HStack(spacing: 6) {
+                        Image(systemName: "target")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.accentColor)
+                        Text("Primary: \(primary.name) \(primary.percent)%")
+                            .font(.system(size: 12))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if !categoryNames.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(categoryNames.prefix(3), id: \.self) { name in
+                            Text(name)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.accentColor)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.accentColor.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
                     }
                 }
             }
@@ -352,10 +467,14 @@ struct WorkoutRowView: View {
 
 struct ExerciseDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     var exercise: ExerciseDefinition
     @State private var showingAddWorkoutSheet = false
     @State private var showingDeleteConfirmation = false
     @State private var workoutToDelete: WorkoutRecord? = nil
+    @State private var isEditingExercise = false
+    @State private var showingExerciseDeleteConfirmation = false
+    @State private var showingExerciseInfo = false
     
     // Computed properties for best performance metrics
     private var bestOneRepMaxData: (value: Double, date: Date)? {
@@ -389,165 +508,118 @@ struct ExerciseDetailView: View {
         return nil
     }
 
+    private var categoryNames: [String] {
+        exercise.categories
+            .sorted(by: { $0.name < $1.name })
+            .map { $0.name }
+    }
+
+    private var majorContributionSlices: [ContributionSlice] {
+        exercise.majorContributions
+            .filter { $0.share > 0 }
+            .sorted(by: { $0.share > $1.share })
+            .compactMap { contribution in
+                guard let name = contribution.majorGroup?.name else { return nil }
+                return ContributionSlice(name: name, percentage: Double(contribution.share) / 100.0)
+            }
+    }
+
+    private struct SpecificGroupBreakdown: Identifiable {
+        let id = UUID()
+        let groupName: String
+        let groupShare: Int
+        let slices: [ContributionSlice]
+    }
+
+    private var specificGroupBreakdowns: [SpecificGroupBreakdown] {
+        let grouped = Dictionary(grouping: exercise.specificContributions.filter { $0.share > 0 }) { contribution -> UUID? in
+            contribution.specificMuscle?.majorGroup?.id
+        }
+
+        return grouped.compactMap { key, contributions in
+            guard
+                let groupID = key,
+                let groupShare = exercise.majorContributions.first(where: { $0.majorGroup?.id == groupID })?.share,
+                groupShare > 0,
+                let groupName = contributions.first?.specificMuscle?.majorGroup?.name
+            else { return nil }
+
+            let slices = contributions
+                .compactMap { contribution -> ContributionSlice? in
+                    guard let muscleName = contribution.specificMuscle?.name else { return nil }
+                    return ContributionSlice(name: muscleName, percentage: Double(contribution.share) / 100.0)
+                }
+                .sorted(by: { $0.percentage > $1.percentage })
+
+            return SpecificGroupBreakdown(groupName: groupName, groupShare: groupShare, slices: slices)
+        }
+        .sorted(by: { $0.groupShare > $1.groupShare })
+    }
+
+    private var hasContributionData: Bool {
+        !categoryNames.isEmpty || !majorContributionSlices.isEmpty || !specificGroupBreakdowns.isEmpty
+    }
+
+    private var validationMessages: [String] {
+        exercise.validatePercentages()
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            if !exercise.workoutRecords.isEmpty {
-                // Enhanced summary card for best performance metrics
-                VStack(spacing: 16) {
-                    HStack {
-                        Image(systemName: "trophy.fill")
-                            .foregroundColor(.orange)
-                            .font(.system(size: 16, weight: .medium))
-                        Text("Personal Records")
-                            .font(.system(size: 18, weight: .semibold))
-                        Spacer()
-                    }
-                    .padding(.top, 20)
-                    .padding(.horizontal, 20)
-                    
-                    HStack(spacing: 0) {
-                        VStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.blue.opacity(0.1))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "scalemass.fill")
-                                    .foregroundColor(.blue)
-                                    .font(.system(size: 18, weight: .medium))
-                            }
-                            
-                            Text("Best 1RM")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.secondary)
-                            
-                            if let bestOneRM = bestOneRepMaxData {
-                                Text("\(bestOneRM.value, specifier: "%.1f")")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.primary)
-                                Text("\(bestOneRM.date, format: .dateTime.day().month())")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("N/A")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        
-                        Rectangle()
-                            .fill(Color.secondary.opacity(0.3))
-                            .frame(width: 1, height: 60)
-                        
-                        VStack(spacing: 8) {
-                            ZStack {
-                                Circle()
-                                    .fill(Color.green.opacity(0.1))
-                                    .frame(width: 44, height: 44)
-                                Image(systemName: "chart.bar.fill")
-                                    .foregroundColor(.green)
-                                    .font(.system(size: 18, weight: .medium))
-                            }
-                            
-                            Text("Best Volume")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(.secondary)
-                            
-                            if let bestVolume = bestVolumeWorkout {
-                                Text("\(bestVolume.volume, specifier: "%.1f")")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.primary)
-                                Text("\(bestVolume.date, format: .dateTime.day().month())")
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            } else {
-                                Text("N/A")
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 20)
-                }
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color(UIColor.secondarySystemBackground))
-                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
-                )
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-            }
-            
-            if exercise.workoutRecords.isEmpty {
-                VStack(spacing: 16) {
+            List {
+                Section(header: HStack {
+                    Image(systemName: "trophy.fill").foregroundColor(.orange)
+                    Text("Personal Records")
                     Spacer()
-                    
-                    ZStack {
-                        Circle()
-                            .fill(Color.gray.opacity(0.1))
-                            .frame(width: 80, height: 80)
-                        
-                        Image(systemName: "dumbbell")
-                            .font(.system(size: 32, weight: .medium))
-                            .foregroundColor(.gray)
-                    }
-                    
-                    VStack(spacing: 8) {
+                }) {
+                    PRSummaryCard(bestOneRepMaxData: bestOneRepMaxData, bestVolumeWorkout: bestVolumeWorkout)
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
+                }
+
+                Section(header: Text("Workout History")) {
+                    if exercise.workoutRecords.isEmpty {
                         Text("No workouts yet")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundColor(.primary)
-                        
-                        Text("Tap the + button to log your first workout")
-                            .font(.system(size: 15))
+                            .font(.subheadline)
                             .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                    
-                    Spacer()
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List {
-                    ForEach(exercise.workoutRecords.sorted(by: { $0.date > $1.date })) { workout in
-                        NavigationLink {
-                            WorkoutSessionDetailView(workoutRecord: workout)
-                        } label: {
-                            WorkoutRowView(workout: workout)
-                        }
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                workoutToDelete = workout
-                                showingDeleteConfirmation = true
+                    } else {
+                        ForEach(exercise.workoutRecords.sorted(by: { $0.date > $1.date })) { workout in
+                            NavigationLink {
+                                WorkoutSessionDetailView(workoutRecord: workout)
                             } label: {
-                                Label("Delete Workout", systemImage: "trash")
+                                WorkoutRowView(workout: workout)
                             }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button(role: .destructive) {
-                                workoutToDelete = workout
-                                showingDeleteConfirmation = true
-                            } label: {
-                                Label("Delete", systemImage: "trash")
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    workoutToDelete = workout
+                                    showingDeleteConfirmation = true
+                                } label: {
+                                    Label("Delete Workout", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button(role: .destructive) {
+                                    workoutToDelete = workout
+                                    showingDeleteConfirmation = true
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                         }
                     }
                 }
-                .listStyle(PlainListStyle())
-                .alert("Delete Workout", isPresented: $showingDeleteConfirmation) {
-                    Button("Cancel", role: .cancel) {
+            }
+            .listStyle(PlainListStyle())
+            .alert("Delete Workout", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { workoutToDelete = nil }
+                Button("Delete", role: .destructive) {
+                    if let workout = workoutToDelete {
+                        deleteWorkout(workout)
                         workoutToDelete = nil
                     }
-                    Button("Delete", role: .destructive) {
-                        if let workout = workoutToDelete {
-                            deleteWorkout(workout)
-                            workoutToDelete = nil
-                        }
-                    }
-                } message: {
-                    Text("Are you sure you want to delete this workout? This action cannot be undone.")
                 }
+            } message: {
+                Text("Are you sure you want to delete this workout? This action cannot be undone.")
             }
             
             // Enhanced floating action button
@@ -577,8 +649,94 @@ struct ExerciseDetailView: View {
             }
         }
         .navigationTitle(exercise.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button("Details") { showingExerciseInfo = true }
+                Button("Edit") { isEditingExercise = true }
+                Button(role: .destructive) {
+                    showingExerciseDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
+        }
         .sheet(isPresented: $showingAddWorkoutSheet) {
-            WorkoutInputView(exerciseDefinition: exercise)
+            NavigationStack {
+                WorkoutInputView(exerciseDefinition: exercise)
+            }
+        }
+        .sheet(isPresented: $isEditingExercise) {
+            NavigationStack {
+                ExerciseEditorView(mode: .edit, exercise: exercise)
+            }
+        }
+        .sheet(isPresented: $showingExerciseInfo) {
+            NavigationStack {
+                ExerciseInfoView(exercise: exercise)
+            }
+        }
+        .alert("Delete Exercise", isPresented: $showingExerciseDeleteConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Delete", role: .destructive) {
+                modelContext.delete(exercise)
+                do { try modelContext.save() } catch { }
+                dismiss()
+            }
+        } message: {
+            Text("Are you sure you want to delete this exercise? This action cannot be undone.")
+        }
+    }
+
+    private var contributionSummary: some View {
+        Group {
+            if hasContributionData {
+                VStack(alignment: .leading, spacing: 16) {
+                    if !categoryNames.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(categoryNames, id: \.self) { name in
+                                    Text(name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background(Color.accentColor.opacity(0.15))
+                                        .foregroundColor(.accentColor)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                    }
+
+                    if !majorContributionSlices.isEmpty {
+                        ContributionBreakdownView(title: "Major Muscle Groups", slices: majorContributionSlices)
+                            .padding(.horizontal, 16)
+                    }
+
+                    ForEach(specificGroupBreakdowns) { breakdown in
+                        ContributionBreakdownView(
+                            title: "\(breakdown.groupName) \(breakdown.groupShare)%",
+                            slices: breakdown.slices
+                        )
+                        .padding(.horizontal, 16)
+                    }
+                    if !validationMessages.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(validationMessages, id: \.self) { message in
+                                Label(message, systemImage: "exclamationmark.triangle.fill")
+                                    .font(.footnote)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                    }
+                    Divider()
+                        .padding(.horizontal, 16)
+                }
+                .padding(.vertical, 12)
+            }
         }
     }
     
@@ -597,6 +755,89 @@ struct ExerciseDetailView: View {
         } catch {
             print("Error deleting workout: \(error)")
         }
+    }
+}
+
+// MARK: - Detail Helpers
+
+private struct PRSummaryCard: View {
+    let bestOneRepMaxData: (value: Double, date: Date)?
+    let bestVolumeWorkout: (volume: Double, date: Date)?
+
+    var body: some View {
+        VStack(spacing: 16) {
+            // Card content only; title is provided by the Section header.
+            Spacer().frame(height: 8)
+
+            HStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.blue.opacity(0.1))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "scalemass.fill")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 18, weight: .medium))
+                    }
+                    Text("Best 1RM")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+                    if let best = bestOneRepMaxData {
+                        Text("\(best.value, specifier: "%.1f")")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.primary)
+                        Text("\(best.date, format: .dateTime.day().month())")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("N/A")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.3))
+                    .frame(width: 1, height: 60)
+
+                VStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.green.opacity(0.1))
+                            .frame(width: 44, height: 44)
+                        Image(systemName: "chart.bar.fill")
+                            .foregroundColor(.green)
+                            .font(.system(size: 18, weight: .medium))
+                    }
+                    Text("Best Volume")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.secondary)
+                    if let vol = bestVolumeWorkout {
+                        Text("\(vol.volume, specifier: "%.1f")")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.primary)
+                        Text("\(vol.date, format: .dateTime.day().month())")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("N/A")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 20)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(UIColor.secondarySystemBackground))
+                .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+        )
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
     }
 }
 

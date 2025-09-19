@@ -240,7 +240,18 @@ struct EnhancedWorkoutRow: View {
 
 #Preview {
     let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+    let container = try! ModelContainer(
+        for: ExerciseDefinition.self,
+             WorkoutRecord.self,
+             SetEntry.self,
+             AppSettings.self,
+             MajorMuscleGroup.self,
+             SpecificMuscle.self,
+             WorkoutCategoryTag.self,
+             ExerciseMajorContribution.self,
+             ExerciseSpecificContribution.self,
+        configurations: config
+    )
     
     // Create sample data
     let exercise1 = ExerciseDefinition(name: "Bench Press")
