@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import UniformTypeIdentifiers
+import OSLog
 
 struct DataManagementView: View {
     @Environment(\.modelContext) private var modelContext
@@ -8,6 +9,10 @@ struct DataManagementView: View {
     @Query private var workouts: [WorkoutRecord]
     @Query private var sets: [SetEntry]
     @Query private var settings: [AppSettings]
+    @Query(sort: \WorkoutCategoryTag.name) private var categories: [WorkoutCategoryTag]
+    @Query(sort: \MajorMuscleGroup.name) private var majorGroups: [MajorMuscleGroup]
+    @Query(sort: \SpecificMuscle.name) private var muscles: [SpecificMuscle]
+    private let logger = Logger(subsystem: "com.adityamishra.StrengthLog", category: "DataManagement")
     
     @State private var exportURL: URL?
     @State private var isExporting = false
@@ -33,7 +38,7 @@ struct DataManagementView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Export all your workout data to a JSON file")
+                Text("Export all your data, including reference taxonomy, to a JSON file")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
@@ -78,7 +83,7 @@ struct DataManagementView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Import workout data from a JSON file")
+                Text("Import data from a JSON file (replaces existing data)")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
@@ -128,6 +133,57 @@ struct DataManagementView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
                 
+                // Reference Data Management
+                VStack(spacing: 16) {
+                    HStack {
+                        Image(systemName: "folder.badge.gearshape")
+                            .foregroundColor(.purple)
+                        Text("Reference Data")
+                            .font(.headline)
+                            .fontWeight(.semibold)
+                        Spacer()
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Manage workout categories, muscle groups, and specific muscles")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+
+                        NavigationLink {
+                            ReferenceDataManagerView()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 16, weight: .medium))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Open Reference Manager")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("Create and edit categories and muscles")
+                                        .font(.caption)
+                                        .opacity(0.8)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .opacity(0.6)
+                            }
+                            .foregroundColor(.purple)
+                            .padding(16)
+                            .background(Color.purple.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.purple.opacity(0.25), lineWidth: 1)
+                            )
+                        }
+                    }
+                }
+                .padding(20)
+                .background(Color(.systemBackground))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
+                
                 // Enhanced Clear Data Section
                 VStack(spacing: 16) {
                     HStack {
@@ -140,7 +196,7 @@ struct DataManagementView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Delete all exercises and workout records")
+                        Text("Delete all exercises, workout records, and reference data")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         
@@ -303,7 +359,7 @@ struct DataManagementView: View {
                 clearAllData()
             }
         } message: {
-            Text("Are you sure you want to delete all exercises and workout records? This action cannot be undone.")
+            Text("Are you sure you want to delete all exercises, workout records, and reference data? This action cannot be undone.")
         }
     }
     
@@ -312,12 +368,19 @@ struct DataManagementView: View {
     }
     
     private func clearAllData() {
-        // Delete all exercises (which will cascade delete all workout records and sets due to relationship rules)
-        for exercise in exercises {
-            modelContext.delete(exercise)
-        }
-        
-        // Try to save the context explicitly to ensure changes are persisted immediately
+        // Delete exercises first (cascades to workouts, sets, and contributions)
+        for exercise in exercises { modelContext.delete(exercise) }
+
+        // Delete specific muscles (including any without a major group)
+        for muscle in muscles { modelContext.delete(muscle) }
+
+        // Delete major groups (cascades to their specific muscles as well; safe after specifics pass)
+        for group in majorGroups { modelContext.delete(group) }
+
+        // Delete categories
+        for tag in categories { modelContext.delete(tag) }
+
+        // Persist deletions
         do {
             try modelContext.save()
         } catch {
@@ -330,6 +393,9 @@ struct DataManagementView: View {
         do {
             // Create a data structure to represent the export data
             struct ExportData: Codable {
+                var categories: [CategoryRef]
+                var majorGroups: [MajorGroupRef]
+                var specificMuscles: [SpecificMuscleRef]
                 var exercises: [ExerciseData]
                 var settings: SettingsData?
             }
@@ -340,11 +406,43 @@ struct DataManagementView: View {
                 var showAdvancedStats: Bool
                 var defaultWeightUnit: String
             }
-            
+
+            // Top-level reference data
+            struct CategoryRef: Codable {
+                var name: String
+            }
+            struct MajorGroupRef: Codable {
+                var name: String
+                var info: String?
+            }
+            struct SpecificMuscleRef: Codable {
+                var name: String
+                var majorGroupName: String?
+                var notes: String?
+            }
+
+            struct CategoryData: Codable {
+                var name: String
+            }
+
+            struct MajorContributionData: Codable {
+                var groupName: String
+                var share: Int
+            }
+
+            struct SpecificContributionData: Codable {
+                var majorGroupName: String
+                var muscleName: String
+                var share: Int
+            }
+
             struct ExerciseData: Codable {
                 var id: UUID
                 var name: String
                 var dateAdded: Date
+                var categories: [CategoryData]
+                var majorContributions: [MajorContributionData]
+                var specificContributions: [SpecificContributionData]
                 var workouts: [WorkoutData]
             }
             
@@ -362,6 +460,30 @@ struct DataManagementView: View {
             }
             
             // Convert the model data to the export structure
+            var exportCategories: [CategoryRef] = []
+            exportCategories.reserveCapacity(categories.count)
+            for tag in categories {
+                exportCategories.append(CategoryRef(name: tag.name))
+            }
+
+            var exportMajorGroups: [MajorGroupRef] = []
+            exportMajorGroups.reserveCapacity(majorGroups.count)
+            for group in majorGroups {
+                exportMajorGroups.append(MajorGroupRef(name: group.name, info: group.info))
+            }
+
+            var exportSpecificMuscles: [SpecificMuscleRef] = []
+            exportSpecificMuscles.reserveCapacity(muscles.count)
+            for muscle in muscles {
+                exportSpecificMuscles.append(
+                    SpecificMuscleRef(
+                        name: muscle.name,
+                        majorGroupName: muscle.majorGroup?.name,
+                        notes: muscle.notes
+                    )
+                )
+            }
+
             var exportExercises: [ExerciseData] = []
             
             for exercise in exercises {
@@ -388,10 +510,36 @@ struct DataManagementView: View {
                     workoutDataArray.append(workoutData)
                 }
                 
+                let categoryData = exercise.categories
+                    .sorted(by: { $0.name < $1.name })
+                    .map { CategoryData(name: $0.name) }
+
+                let majorData = exercise.majorContributions
+                    .filter { $0.share > 0 }
+                    .sorted(by: { $0.share > $1.share })
+                    .compactMap { contribution -> MajorContributionData? in
+                        guard let groupName = contribution.majorGroup?.name else { return nil }
+                        return MajorContributionData(groupName: groupName, share: contribution.share)
+                    }
+
+                let specificData = exercise.specificContributions
+                    .filter { $0.share > 0 }
+                    .sorted(by: { $0.share > $1.share })
+                    .compactMap { contribution -> SpecificContributionData? in
+                        guard
+                            let muscleName = contribution.specificMuscle?.name,
+                            let majorName = contribution.specificMuscle?.majorGroup?.name
+                        else { return nil }
+                        return SpecificContributionData(majorGroupName: majorName, muscleName: muscleName, share: contribution.share)
+                    }
+
                 let exerciseData = ExerciseData(
                     id: exercise.id,
                     name: exercise.name,
                     dateAdded: exercise.dateAdded,
+                    categories: categoryData,
+                    majorContributions: majorData,
+                    specificContributions: specificData,
                     workouts: workoutDataArray
                 )
                 exportExercises.append(exerciseData)
@@ -407,7 +555,13 @@ struct DataManagementView: View {
                 )
             }
             
-            let exportData = ExportData(exercises: exportExercises, settings: settingsData)
+            let exportData = ExportData(
+                categories: exportCategories,
+                majorGroups: exportMajorGroups,
+                specificMuscles: exportSpecificMuscles,
+                exercises: exportExercises,
+                settings: settingsData
+            )
             
             // Convert to JSON
             let encoder = JSONEncoder()
@@ -429,6 +583,10 @@ struct DataManagementView: View {
     private func importData(from data: Data) throws {
         // Define the import data structure
         struct ImportData: Codable {
+            // Top-level reference data are optional to support older exports
+            var categories: [CategoryRef]? // names only
+            var majorGroups: [MajorGroupRef]? // name + info
+            var specificMuscles: [SpecificMuscleRef]? // name + major group name
             var exercises: [ExerciseData]
             var settings: SettingsData?
         }
@@ -439,11 +597,34 @@ struct DataManagementView: View {
             var showAdvancedStats: Bool
             var defaultWeightUnit: String
         }
-        
+
+        // Top-level reference data
+        struct CategoryRef: Codable { var name: String }
+        struct MajorGroupRef: Codable { var name: String; var info: String? }
+        struct SpecificMuscleRef: Codable { var name: String; var majorGroupName: String?; var notes: String? }
+
+        struct CategoryData: Codable {
+            var name: String
+        }
+
+        struct MajorContributionData: Codable {
+            var groupName: String
+            var share: Int
+        }
+
+        struct SpecificContributionData: Codable {
+            var majorGroupName: String
+            var muscleName: String
+            var share: Int
+        }
+
         struct ExerciseData: Codable {
             var id: UUID
             var name: String
             var dateAdded: Date
+            var categories: [CategoryData]? // optional for backward compatibility
+            var majorContributions: [MajorContributionData]? // optional for backward compatibility
+            var specificContributions: [SpecificContributionData]? // optional for backward compatibility
             var workouts: [WorkoutData]
         }
         
@@ -465,16 +646,125 @@ struct DataManagementView: View {
         decoder.dateDecodingStrategy = .iso8601
         let importData = try decoder.decode(ImportData.self, from: data)
         
-        // Clear existing data
-        for exercise in exercises {
-            modelContext.delete(exercise)
+        // Clear existing data (replace all)
+        for exercise in exercises { modelContext.delete(exercise) }
+        for muscle in muscles { modelContext.delete(muscle) }
+        for group in majorGroups { modelContext.delete(group) }
+        for tag in categories { modelContext.delete(tag) }
+
+        // Start with empty caches (avoid relying on @Query state after deletions)
+        var categoryCache = [String: WorkoutCategoryTag]()
+        var majorGroupCache = [String: MajorMuscleGroup]()
+        var muscleCache = [String: SpecificMuscle]()
+
+        func resolveCategory(named name: String) -> WorkoutCategoryTag {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return WorkoutCategoryTag(name: "") } // unreachable in normal flow
+            let key = trimmed.lowercased()
+            if let existing = categoryCache[key] {
+                return existing
+            }
+            let category = WorkoutCategoryTag(name: trimmed)
+            modelContext.insert(category)
+            categoryCache[key] = category
+            return category
         }
-        
-        // Import the new data
+
+        func resolveMajorGroup(named name: String) -> MajorMuscleGroup {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return MajorMuscleGroup(name: "") } // unreachable in normal flow
+            let key = trimmed.lowercased()
+            if let existing = majorGroupCache[key] {
+                return existing
+            }
+            let group = MajorMuscleGroup(name: trimmed)
+            modelContext.insert(group)
+            majorGroupCache[key] = group
+            return group
+        }
+
+        func resolveMuscle(named name: String, majorGroup: MajorMuscleGroup) -> SpecificMuscle {
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return SpecificMuscle(name: "", majorGroup: majorGroup) } // unreachable in normal flow
+            let key = trimmed.lowercased()
+            if let existing = muscleCache[key] {
+                if existing.majorGroup?.id != majorGroup.id {
+                    existing.majorGroup = majorGroup
+                }
+                return existing
+            }
+            let muscle = SpecificMuscle(name: trimmed, majorGroup: majorGroup)
+            modelContext.insert(muscle)
+            muscleCache[key] = muscle
+            return muscle
+        }
+
+        // 1) Import top-level reference data first (if provided)
+        if let refs = importData.majorGroups {
+            for ref in refs {
+                let trimmed = ref.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                let group = resolveMajorGroup(named: trimmed)
+                group.info = ref.info
+            }
+        }
+
+        if let refs = importData.categories {
+            for ref in refs {
+                let trimmed = ref.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                _ = resolveCategory(named: trimmed)
+            }
+        }
+
+        if let refs = importData.specificMuscles {
+            for ref in refs {
+                let trimmedMuscle = ref.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmedMuscle.isEmpty else { continue }
+                if let groupName = ref.majorGroupName, !groupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    let group = resolveMajorGroup(named: groupName)
+                    let muscle = resolveMuscle(named: trimmedMuscle, majorGroup: group)
+                    muscle.notes = ref.notes
+                } else {
+                    // No major group provided; still import the muscle without association
+                    let key = trimmedMuscle.lowercased()
+                    if muscleCache[key] == nil {
+                        let muscle = SpecificMuscle(name: trimmedMuscle, majorGroup: nil, notes: ref.notes)
+                        modelContext.insert(muscle)
+                        muscleCache[key] = muscle
+                    }
+                }
+            }
+        }
+
+        // 2) Import the new exercises and their related data
         for exerciseData in importData.exercises {
             let exercise = ExerciseDefinition(name: exerciseData.name, dateAdded: exerciseData.dateAdded.midnight)
             exercise.id = exerciseData.id
             modelContext.insert(exercise)
+
+            for categoryData in exerciseData.categories ?? [] {
+                let category = resolveCategory(named: categoryData.name)
+                exercise.categories.append(category)
+            }
+
+            for majorData in exerciseData.majorContributions ?? [] {
+                let group = resolveMajorGroup(named: majorData.groupName)
+                let contribution = ExerciseMajorContribution(exercise: exercise, majorGroup: group, share: majorData.share)
+                modelContext.insert(contribution)
+            }
+
+            for specificData in exerciseData.specificContributions ?? [] {
+                let group = resolveMajorGroup(named: specificData.majorGroupName)
+                let muscle = resolveMuscle(named: specificData.muscleName, majorGroup: group)
+                let contribution = ExerciseSpecificContribution(exercise: exercise, specificMuscle: muscle, share: specificData.share)
+                modelContext.insert(contribution)
+            }
+
+            let validationErrors = exercise.validatePercentages()
+            if !validationErrors.isEmpty {
+                logger.warning("Imported exercise \(exercise.name, privacy: .public) has distribution issues: \(validationErrors.joined(separator: "; "), privacy: .public)")
+            }
             
             for workoutData in exerciseData.workouts {
                 let workout = WorkoutRecord(date: workoutData.date.midnight, exerciseDefinition: exercise)
@@ -594,7 +884,12 @@ struct DataStatRow: View {
                 ExerciseDefinition.self,
                 WorkoutRecord.self,
                 SetEntry.self,
-                AppSettings.self
+                AppSettings.self,
+                MajorMuscleGroup.self,
+                SpecificMuscle.self,
+                WorkoutCategoryTag.self,
+                ExerciseMajorContribution.self,
+                ExerciseSpecificContribution.self
             ], inMemory: true)
     }
-} 
+}

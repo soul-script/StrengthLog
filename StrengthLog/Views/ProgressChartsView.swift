@@ -425,7 +425,18 @@ struct ProgressChartsView_Previews: PreviewProvider {
         
         // Setup for PreviewProvider struct:
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, configurations: config)
+        let container = try! ModelContainer(
+            for: ExerciseDefinition.self,
+                 WorkoutRecord.self,
+                 SetEntry.self,
+                 AppSettings.self,
+                 MajorMuscleGroup.self,
+                 SpecificMuscle.self,
+                 WorkoutCategoryTag.self,
+                 ExerciseMajorContribution.self,
+                 ExerciseSpecificContribution.self,
+            configurations: config
+        )
         createSampleData(modelContext: container.mainContext) // Populate with data
 
         return ProgressChartsView()

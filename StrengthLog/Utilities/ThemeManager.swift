@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 
 /// A utility class to help manage theme-aware functionality throughout the app
-@MainActor
 class ThemeManager: ObservableObject {
     @Published var currentSettings: AppSettings?
     
@@ -10,11 +9,13 @@ class ThemeManager: ObservableObject {
     
     init() {}
     
+    @MainActor
     func initialize(with context: ModelContext) {
         self.modelContext = context
         loadSettings()
     }
     
+    @MainActor
     private func loadSettings() {
         guard let context = modelContext else { return }
         
@@ -37,26 +38,31 @@ class ThemeManager: ObservableObject {
         }
     }
     
+    @MainActor
     func updateTheme(_ themeMode: ThemeMode) {
         currentSettings?.themeMode = themeMode
         saveSettings()
     }
     
+    @MainActor
     func updateAccentColor(_ color: AppAccentColor) {
         currentSettings?.accentColor = color
         saveSettings()
     }
     
+    @MainActor
     func updateWeightUnit(_ unit: WeightUnit) {
         currentSettings?.defaultWeightUnit = unit
         saveSettings()
     }
     
+    @MainActor
     func updateAdvancedStats(_ enabled: Bool) {
         currentSettings?.showAdvancedStats = enabled
         saveSettings()
     }
     
+    @MainActor
     private func saveSettings() {
         guard let context = modelContext else { return }
         do {
@@ -68,18 +74,22 @@ class ThemeManager: ObservableObject {
     
     // MARK: - Convenience Properties
     
+    @MainActor
     var colorScheme: ColorScheme? {
         currentSettings?.themeMode.colorScheme
     }
     
+    @MainActor
     var accentColor: Color {
         currentSettings?.accentColor.color ?? .blue
     }
     
+    @MainActor
     var weightUnit: WeightUnit {
         currentSettings?.defaultWeightUnit ?? .kg
     }
     
+    @MainActor
     var showAdvancedStats: Bool {
         currentSettings?.showAdvancedStats ?? true
     }
@@ -87,7 +97,7 @@ class ThemeManager: ObservableObject {
 
 /// Environment key for ThemeManager
 struct ThemeManagerKey: EnvironmentKey {
-    @MainActor static let defaultValue = ThemeManager()
+    static let defaultValue = ThemeManager()
 }
 
 extension EnvironmentValues {

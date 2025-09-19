@@ -7,15 +7,23 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 @main
 struct StrengthLogApp: App {
+    private static let bootstrapLogger = Logger(subsystem: "com.adityamishra.StrengthLog", category: "bootstrap")
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ExerciseDefinition.self,
             WorkoutRecord.self,
             SetEntry.self,
-            AppSettings.self
+            AppSettings.self,
+            MajorMuscleGroup.self,
+            SpecificMuscle.self,
+            WorkoutCategoryTag.self,
+            ExerciseMajorContribution.self,
+            ExerciseSpecificContribution.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -25,6 +33,16 @@ struct StrengthLogApp: App {
             fatalError("Could not create ModelContainer: \(error)")
         }
     }()
+
+    @MainActor
+    init() {
+        do {
+            try ReferenceDataSeeder(context: sharedModelContainer.mainContext).seedIfNeeded()
+        } catch {
+            Self.bootstrapLogger.error("Failed to seed reference data: \(error.localizedDescription, privacy: .public)")
+            assertionFailure("Failed to seed reference data: \(error)")
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -47,4 +65,3 @@ struct ThemeAwareContentView: View {
             .tint(currentSettings?.accentColor.color ?? .blue)
     }
 }
-
