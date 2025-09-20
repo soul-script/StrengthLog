@@ -4,20 +4,25 @@
 
 ## ✨ Features
 
-- **Advanced Exercise Management:**
-  - Define and manage a custom list of your exercises with comprehensive categorization.
+- **Advanced Exercise Management & Comprehensive Taxonomy:**
+  - Define and manage a custom list of your exercises with sophisticated muscle tracking and categorization.
+  - **Exercise Taxonomy System:** Complete muscle tracking with both major muscle groups and specific muscle contributions.
+  - **Major Muscle Groups:** Organize exercises by primary muscle groups (Chest, Back, Shoulders, Arms, Legs, Glutes, Core, Cardio, Full Body, Flexibility, Functional, Other).
+  - **Specific Muscle Tracking:** Track individual muscle contributions (e.g., Pectoralis Major, Latissimus Dorsi, Anterior Deltoid) with percentage-based contribution tracking.
   - **Exercise Categories:** Classify exercises by movement patterns (Push, Pull, Squat, Hinge, Carry, Core, Cardio, Flexibility, Plyometric, Other).
-  - **Muscle Group Organization:** Organize exercises by primary muscle groups (Chest, Back, Shoulders, Arms, Legs, Glutes, Core, Cardio, Full Body, Flexibility, Functional, Other).
   - **Visual Organization:** Color-coded exercise categories and muscle groups for quick identification.
   - **Smart Filtering:** Filter exercises by muscle group with visual indicators and exercise counts.
-  - **Enhanced Creation:** Add exercises with full categorization support through intuitive interface.
-  - **Advanced Editing:** Modify exercise names, categories, and muscle groups easily.
-  - **Automatic Grouping:** Exercises automatically grouped by muscle group for better organization.
+  - **Template-Based Creation:** Intelligent exercise creation using predefined templates with automatic muscle contribution mapping for common exercises.
+  - **Enhanced Exercise Editor:** Comprehensive exercise editor with muscle contribution tracking, category assignment, and percentage validation.
+  - **Contribution Validation:** Ensures muscle contribution percentages sum to 100% for accurate tracking.
+  - **Exercise Information Views:** Detailed exercise breakdowns showing muscle contribution charts and category information.
+  - **Reference Data Management:** User-controlled seeding of default muscle groups, specific muscles, and exercise categories.
 - **Flexible Workout Logging:**
   - Log workout sessions for each exercise, including the date (automatically normalized to midnight for consistency).
   - **Weighted Exercises:** Record multiple sets with specific weight and repetitions.
   - **Bodyweight Exercises:** Log bodyweight exercises (pull-ups, push-ups, dips, etc.) with reps only - no weight required.
   - **Mixed Workouts:** Combine both weighted and bodyweight sets within the same workout session.
+  - **Unit-Aware Logging:** Store both kilogram and pound values with automatic conversions that respect each user's preferred weight unit.
   - Automatic calculation of estimated 1 Rep Max (1RM) for weighted sets using the Epley formula (with special handling for 1-rep sets).
   - Smart volume calculation: weight × reps for weighted exercises, total reps for bodyweight exercises.
   - **Consistent Timestamps:** All workout dates are stored at midnight (00:00:00.000) for better organization and time zone consistency.
@@ -40,13 +45,16 @@
   - Track your progress with interactive charts.
   - Select specific exercises to visualize trends.
   - Switch between charts for Estimated 1RM (weighted exercises only) and Training Volume.
+  - Charts automatically adapt units and labels to match your preferred kilogram or pound display.
   - Filter chart data by various time ranges (1 Month, 3 Months, 6 Months, 1 Year, All Time).
   - Tap on data points in the chart to see specific values and dates.
-- **Data Management:**
-  - **Export Data:** Securely back up all your workout data (exercises, workouts, sets, and theme preferences) to a JSON file with full bodyweight exercise support.
-  - **Import Data:** Restore your data from a previously exported JSON file. (Note: Importing replaces existing data).
-  - **Clear All Data:** Option to reset all app data with confirmation.
-  - View database statistics (counts of exercises, workouts, sets).
+- **Enhanced Data Management:**
+  - **Advanced Export:** Securely back up all your workout data (exercises, workouts, sets, muscle contributions, taxonomy data, and theme preferences) to a JSON file with dual kilogram and pound storage for every set.
+  - **Smart Import:** Restore your data from a previously exported JSON file with automatic taxonomy reconstruction and backward compatibility. (Note: Importing replaces existing data).
+  - **User-Controlled Reference Data:** On-demand restoration of default muscle groups, specific muscles, exercise categories, and exercise templates with user feedback.
+  - **Reference Data Manager:** Comprehensive interface for managing muscle groups, specific muscles, and exercise categories with validation and relationship tracking.
+  - **Enhanced Database Statistics:** View detailed statistics including exercise counts by category, muscle group distributions, and contribution data.
+  - **Safe Data Operations:** Clear all data option with confirmation and referential integrity checks.
 - **Modern & Customizable Interface:**
   - **Enhanced Visual Design:** Modern, visually appealing interface with improved visual hierarchy and consistent design language.
   - **Component Architecture:** Reusable UI components for consistent experience across all views.
@@ -55,6 +63,7 @@
   - **Dark Mode Support:** Choose between Light, Dark, or System theme modes (follows device setting).
   - **Accent Colors:** Personalize your experience with 8 beautiful accent colors (Blue, Green, Orange, Red, Purple, Pink, Indigo, Teal).
   - **Instant Application:** Theme changes apply immediately without restarting the app.
+  - **Unified Theme State:** A centralized theme manager keeps accent colors, weight units, and mode preferences in sync across every view.
   - **Persistent Preferences:** All theme settings are automatically saved and restored.
   - **Settings Interface:** Easy-to-use settings screen for customizing your experience.
 - **Custom App Icon:** A unique, programmatically drawn app icon.
@@ -96,6 +105,12 @@ StrengthLog is currently feature-complete based on its initial and expanded scop
 
 Recent updates include:
 
+- **Exercise Taxonomy & Enhanced Weight Management (v2.7):** Complete muscle tracking system with major muscle groups, specific muscle contributions, and percentage-based tracking. Enhanced weight conversion service with dual-unit storage and improved theme management architecture.
+- **Comprehensive Muscle Tracking System (v2.7):** Added sophisticated exercise taxonomy with major muscle groups, specific muscles, exercise categories, and contribution tracking. Includes template-based exercise creation and validation systems.
+- **Enhanced Weight Conversion Architecture (v2.7):** Implemented comprehensive WeightConversionService for accurate kg/lbs conversions, dual-unit storage in SetEntry models, and unit-aware calculations throughout the application.
+- **User-Controlled Reference Data (v2.7):** Refactored automatic seeding to user-controlled restoration with dedicated reference data manager, improving app startup performance and giving users explicit control.
+- **Global Weight Units & Theme Manager (v2.6):** Introduced a centralized ThemeManager, dual-unit set storage, and unit-aware analytics so every screen respects the user's kilogram or pound preference.
+- **On-Demand Reference Data (v2.6):** Removed automatic seeding at launch in favor of a Data Management action that safely restores default categories and muscle groups on demand.
 - **Session Details UI Overhaul (v2.5):** Complete redesign of workout session details with modern interface, smart summary cards, numbered set displays, enhanced editing capabilities, and full theme integration
 - **Exercise Categories & Muscle Groups (v2.4):** Comprehensive exercise categorization system with 12 muscle groups and 10 exercise categories, featuring visual organization, smart filtering, and enhanced exercise management
 - **Comprehensive UI Enhancement (v2.3):** Complete visual transformation from functional to modern and visually appealing interface while maintaining core simplicity
