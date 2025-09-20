@@ -36,6 +36,7 @@
   - **Modern Interface:** Completely redesigned session details with improved visual hierarchy and user experience.
   - **Smart Summary Cards:** Visual overview showing total volume, set count, and exercise information at a glance.
   - **Numbered Set Display:** Sets displayed with numbered badges and clear weight/reps information.
+  - **Clear Weight Display:** Weights are normalized to 0.5 kg / 0.1 lb and shown with up to one decimal place (e.g., 52.3 → 52.5 kg) for clarity and consistency.
   - **Interactive Set Management:** Tap any set to edit weight, reps, or convert between weighted and bodyweight.
   - **Streamlined Set Addition:** Enhanced form for adding new sets with improved input validation and visual feedback.
   - **Flexible Date Editing:** Modify workout dates with an intuitive graphical date picker.

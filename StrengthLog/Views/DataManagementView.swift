@@ -661,7 +661,7 @@ struct DataManagementView: View {
             return jsonString
     }
     
-    private static func decodeImportData(from data: Data) throws -> DMImportData {
+    nonisolated private static func decodeImportData(from data: Data) throws -> DMImportData {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try decoder.decode(DMImportData.self, from: data)

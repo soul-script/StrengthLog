@@ -201,7 +201,8 @@ struct WorkoutInputView: View {
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     if let weight = set.weight(in: themeManager.weightUnit) {
-                                        Text("\(Int(weight)) \(themeManager.weightUnit.abbreviation) × \(set.reps) reps")
+                                        let weightText = weight.formatted(.number.precision(.fractionLength(0...1)))
+                                        Text("\(weightText) \(themeManager.weightUnit.abbreviation) × \(set.reps) reps")
                                             .font(.system(size: 15, weight: .medium))
                                     } else {
                                         Text("\(set.reps) reps (bodyweight)")

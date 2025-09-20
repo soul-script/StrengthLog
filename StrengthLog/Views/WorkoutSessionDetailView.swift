@@ -139,7 +139,8 @@ struct WorkoutSessionDetailView: View {
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     if let weight = set.weightValue(in: themeManager.weightUnit) {
-                                        Text("\(Int(weight)) \(themeManager.weightUnit.abbreviation) × \(set.reps) reps")
+                                        let weightText = weight.formatted(.number.precision(.fractionLength(0...1)))
+                                        Text("\(weightText) \(themeManager.weightUnit.abbreviation) × \(set.reps) reps")
                                             .font(.subheadline)
                                             .fontWeight(.medium)
                                     } else {

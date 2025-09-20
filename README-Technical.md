@@ -373,7 +373,7 @@ All data models are located in the `Models/` directory.
 - **Purpose:** Allows JSON export/import of all data, manual restoration of reference taxonomy, and clearing data with enhanced categorization support.
 - **Enhanced Functionality (Version 2.8):**
   - **Dual-Unit Export:** Serializes both kilogram and pound values for every `SetEntry`, preserving precise conversions.
-  - **Minimal-Shape Import:** Heavy JSON decode runs off the main thread via a static decoder and `Task.detached`; `applyImport` and UI updates execute on the main actor.
+  - **Minimal-Shape Import:** Heavy JSON decode runs off the main thread via a static decoder and `Task.detached`; `applyImport` and UI updates execute on the main actor. The decode helper is marked `nonisolated` to avoid an `await`/actor hop under Swift 6 while decoding off-main.
   - **Resilient Import:** Reconstructs kg/lbs values using `WeightConversionService` while keeping backward compatibility with pre-unit-aware exports.
   - **Manual Reference Seeding:** Adds a "Restore Reference Data" action that invokes `ReferenceDataSeeder` on demand with success/error feedback.
   - **Settings Persistence:** Theme preferences included in export/import operations.
