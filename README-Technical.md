@@ -1,6 +1,6 @@
 # StrengthLog: Technical Documentation
 
-**Version:** 2.7 (Exercise Taxonomy & Enhanced Weight Management)
+**Version:** 2.8 (MVVM + Repositories, Import Performance, Standardized Rounding)
 **Date:** September 2025
 **Document Purpose:** This document provides a comprehensive technical overview of the StrengthLog iOS application, intended for development teams, new developers onboarding to the project, or for future maintenance and enhancement purposes.
 
@@ -27,21 +27,22 @@ The primary goal of StrengthLog is to offer a simple, user-friendly, and focused
 
 ### 2.1. Architectural Pattern
 
-StrengthLog primarily follows a declarative UI pattern driven by SwiftUI. While not strictly adhering to a formal architectural pattern like MVVM or VIPER by name, its structure exhibits characteristics influenced by MVVM:
+StrengthLog adopts MVVM + Services + Repositories with dependency injection:
 
-- **Models:** SwiftData `@Model` classes (`ExerciseDefinition`, `WorkoutRecord`, `SetEntry`) represent the data and its structure. They include business logic related to data (e.g., computed properties for `totalVolume`, `bestOneRepMaxInSession`, 1RM calculation in `SetEntry`).
-- **Views:** SwiftUI `View` structs define the UI layout and presentation. They observe data (often via `@Query` for SwiftData models or `@State` for local UI state) and update reactively.
-- **View Logic/State Management:** UI-specific logic and state are managed within the views themselves using SwiftUI's property wrappers (`@State`, `@StateObject`, `@Environment`, `@Query`). Data manipulation logic (CRUD operations) is often performed directly within views using the `modelContext` obtained from the environment.
+- **Models:** SwiftData `@Model` classes (`ExerciseDefinition`, `WorkoutRecord`, `SetEntry`, taxonomy models, `AppSettings`). Domain services/utilities encapsulate core logic (e.g., `OneRepMaxCalculator`, `WeightConversionService`, `ContributionMetricsBuilder`).
+- **Repositories:** Protocol-first data layer (`ExerciseRepository`, `WorkoutRepository`, `SettingsRepository`) with SwiftData-backed implementations that centralize reads/writes and simple queries. Injected via environment.
+- **ViewModels:** One per major screen (`ContentViewModel`, `WorkoutHistoryViewModel`, `WorkoutInputViewModel`) own presentation state and intents; repositories handle persistence.
+- **Views:** Thin SwiftUI Views bind to ViewModels and environment dependencies. Direct persistence calls from views are minimized.
+- **Dependency Injection:** `RepositoryProvider` composes concrete repositories; environment keys expose them throughout the view tree. `ThemeManager` initializes from `SettingsRepository`.
 
 ### 2.2. Data Flow Overview
 
-1.  **Data Entry:** Users input data through various views (e.g., `WorkoutInputView` for sets, `ContentView` for new exercises, `WorkoutSessionDetailView` for adding more sets).
-2.  **ModelContext Interaction:** Views use the `@Environment(\.modelContext)` to access the SwiftData `ModelContext`.
-3.  **Object Creation/Modification:** New SwiftData model objects are created (e.g., `SetEntry`, `WorkoutRecord`) or existing ones are modified.
-4.  **Persistence:** SwiftData handles the persistence of these objects to the on-device store. Explicit `modelContext.save()` calls are used in critical data modification paths to ensure immediate persistence.
-5.  **Data Fetching:** Views use `@Query` property wrappers to fetch and observe arrays of SwiftData model objects. These queries can include sorting and filtering.
-6.  **UI Update:** SwiftUI automatically re-renders views when the observed data (from `@Query`, `@State`, etc.) changes.
-7.  **Relationships:** SwiftData manages the relationships between models (e.g., an `ExerciseDefinition` has many `WorkoutRecord`s, a `WorkoutRecord` has many `SetEntry`s). Cascade rules are defined for deletion.
+1.  **User Input:** Views capture user actions and forward intents to ViewModels.
+2.  **ViewModel Orchestration:** ViewModels validate inputs, compute domain values, and call repositories.
+3.  **Repository Persistence:** Repositories perform SwiftData reads/writes and save on the main actor.
+4.  **Reactive Fetching:** Views use `@Query` to observe model changes; ViewModels merge with filter state to derive outputs.
+5.  **UI Update:** SwiftUI re-renders on ViewModel `@Published` updates and `@Query` changes.
+6.  **Relationships:** SwiftData relationships and cascade rules unchanged; repositories encapsulate mutations.
 
 ## 3. Data Models (SwiftData)
 
@@ -195,17 +196,17 @@ All data models are located in the `Models/` directory.
 - **Initialization:** `init(exercise: ExerciseDefinition, specificMuscle: SpecificMuscle, share: Int)`
 - **Validation:** Contribution percentages for an exercise must sum to 100%
 
-### 3.6. Enhanced WeightConversionService (`Models/Extensions.swift`) - Version 2.7
+### 3.6. Enhanced WeightConversionService (`Models/Extensions.swift`) - Version 2.8
 
 - **Purpose:** Centralized service for accurate kg/lbs conversions with consistent rounding and dual-unit storage.
 - **Key Components:**
   - `WeightMeasurement`: Value type carrying paired kilogram/pound readings
-  - `WeightConversionService`: Shared utility for lossless conversion with input sanitization
+  - `WeightConversionService`: Shared utility for deterministic conversion with input sanitization
   - Enhanced `OneRepMaxCalculator` with proper normalization and unit-aware calculations
 - **Features:**
   - Consistent rounding rules (0.5 kg, 0.1 lbs precision)
   - Input sanitization and validation
-  - Lossless round-trip conversions
+  - Deterministic, idempotent conversions within the documented increments
   - Integration with `ThemeManager` for unit preferences
 
 ### 3.7. Relationships and Cascade Rules
@@ -222,15 +223,14 @@ All data models are located in the `Models/` directory.
 ## 4. Core Application (`StrengthLogApp.swift`)
 
 - Standard SwiftUI App entry point, sets up and injects the SwiftData `ModelContainer`.
-- **Updated Schema (Version 2.7):** Includes `ExerciseDefinition`, `WorkoutRecord`, `SetEntry`, `AppSettings`, `MajorMuscleGroup`, `SpecificMuscle`, `WorkoutCategoryTag`, `ExerciseMajorContribution`, and `ExerciseSpecificContribution` with comprehensive relationship mapping.
-- **Enhanced Theme Integration:** `ThemeAwareContentView` instantiates a shared `ThemeManager` with improved weight conversion architecture, bootstraps it asynchronously with the `ModelContext`, and injects it through the environment.
-- **User-Controlled Data Seeding:** No automatic reference-data seeding at launch; taxonomy creation, muscle groups, and exercise templates are exposed through the Data Management screen for user control.
-- **Advanced Theme Architecture:** Automatic theme detection, preference persistence, and comprehensive weight unit management driven by enhanced `ThemeManager`.
-- **Exercise Template Integration:** Automatic seeding of exercise templates with predefined muscle contributions when reference data is restored.
+- **Schema:** `ExerciseDefinition`, `WorkoutRecord`, `SetEntry`, `AppSettings`, `MajorMuscleGroup`, `SpecificMuscle`, `WorkoutCategoryTag`, `ExerciseMajorContribution`, `ExerciseSpecificContribution`.
+- **Repository Injection:** `ThemeAwareContentView` constructs a `RepositoryProvider` from the `ModelContext` and injects repositories via environment keys (`exerciseRepository`, `workoutRepository`, `settingsRepository`).
+- **Theme Initialization:** `ThemeManager` initializes from `SettingsRepository` and is exposed via `@EnvironmentObject`; preferred color scheme and accent color are applied.
+- **User-Controlled Data Seeding:** No automatic reference-data seeding at launch; seeding actions are initiated from Data Management.
 
 ## 5. User Interface (SwiftUI Views)
 
-### 5.1. `ContentView.swift` (Main Navigation & Enhanced Exercise Management) (Updated Version 2.7)
+### 5.1. `ContentView.swift` (Main Navigation & Enhanced Exercise Management) (Updated Version 2.8)
 
 - **Purpose:** Main navigation screen with enhanced exercise categorization, filtering, and visual organization.
 - **Navigation:** Uses `NavigationStack` for proper back button behavior throughout the app.
@@ -274,6 +274,7 @@ All data models are located in the `Models/` directory.
   - **Smart Display:** Lists temporary sets with appropriate labeling (bodyweight vs. weighted).
   - **Volume Calculation:** Displays total volume with context-aware formatting (reps for bodyweight, weight×reps for weighted, "mixed" for combined).
   - Saves the `WorkoutRecord` with its `SetEntry`s. Input fields for weight/reps are not cleared after adding a set to facilitate easier subsequent entries.
+  - **Architecture:** Backed by `WorkoutInputViewModel` (validation, normalization, and persistence via `workoutRepository`).
 
 ### 5.4. `WorkoutHistoryListView.swift`
 
@@ -292,6 +293,7 @@ All data models are located in the `Models/` directory.
   - **Navigation:** Each `DailySummaryRow` is a `NavigationLink` to `DailyWorkoutsView` for that specific day.
   - Handles empty states if no workouts are found in the selected period.
 - **Navigation Title:** "Workout History".
+ - **Architecture:** Backed by `WorkoutHistoryViewModel` (time filters, derived groupings, and logging).
 
 ### 5.5. `Views/DailyWorkoutsView.swift`
 
@@ -366,16 +368,18 @@ All data models are located in the `Models/` directory.
 - **Navigation:** Uses `NavigationStack` with proper title and styling.
 - **Integration:** Direct integration with `ThemeManager` for immediate theme application.
 
-### 5.9. `Views/DataManagementView.swift` (Updated Version 2.6)
+### 5.9. `Views/DataManagementView.swift` (Updated Version 2.8)
 
 - **Purpose:** Allows JSON export/import of all data, manual restoration of reference taxonomy, and clearing data with enhanced categorization support.
-- **Enhanced Functionality (Version 2.6):**
+- **Enhanced Functionality (Version 2.8):**
   - **Dual-Unit Export:** Serializes both kilogram and pound values for every `SetEntry`, preserving precise conversions.
+  - **Minimal-Shape Import:** Heavy JSON decode runs off the main thread via a static decoder and `Task.detached`; `applyImport` and UI updates execute on the main actor.
   - **Resilient Import:** Reconstructs kg/lbs values using `WeightConversionService` while keeping backward compatibility with pre-unit-aware exports.
   - **Manual Reference Seeding:** Adds a "Restore Reference Data" action that invokes `ReferenceDataSeeder` on demand with success/error feedback.
   - **Settings Persistence:** Theme preferences included in export/import operations.
   - `.fileExporter` and `.fileImporter` retain categorization metadata and remain backward compatible with older payloads.
   - Confirmation alert for clearing all data and detailed database statistics.
+  - **Observability:** Structured logging with `OSLog` for start/end and error paths.
 
 ### 5.10. `AppIcon.swift` & `Views/AppIconPreviewView.swift`
 
@@ -433,10 +437,10 @@ All data models are located in the `Models/` directory.
   - Specific muscle management with parent group assignment.
   - Exercise category management with exercise relationship tracking.
 
-### 5.15. `Utilities/ThemeManager.swift` (Enhanced Version 2.7)
+### 5.15. `Utilities/ThemeManager.swift` (Enhanced Version 2.8)
 
 - **Purpose:** Enhanced centralized experience manager that drives theme, accent color, advanced stats visibility, default weight unit, and weight conversion integration.
-- **Architecture:** `ObservableObject` backed by SwiftData with asynchronous bootstrap and improved weight conversion integration.
+- **Architecture:** `ObservableObject` that initializes from `SettingsRepository`; asynchronous bootstrap with improved weight conversion integration.
 - **Enhanced Features (Version 2.7):**
   - **Weight Conversion Integration:** Direct integration with `WeightConversionService` for consistent unit handling.
   - **Reactive Weight Updates:** Automatic recalculation of displayed values when weight unit preferences change.
@@ -451,6 +455,7 @@ All data models are located in the `Models/` directory.
   - `ThemeManagerKey`: Environment key for dependency injection.
   - `ThemeAware` view modifier for consistent tinting.
   - Global access via `@Environment(\.themeManager)` and `@EnvironmentObject` injection from `ThemeAwareContentView`.
+  - **Persistence Boundary:** All reads/writes go through `SettingsRepository`.
 
 ### 5.16. `Utilities/ExerciseTemplateProvider.swift` (Version 2.7)
 
@@ -481,6 +486,17 @@ All data models are located in the `Models/` directory.
   - Specific muscles: Pectoralis Major, Latissimus Dorsi, Anterior Deltoid, etc.
   - Exercise categories: Push, Pull, Squat, Hinge, Core, Cardio, etc.
 - **Integration:** Invoked from `DataManagementView` with success/error feedback to users.
+
+### 5.18. `Utilities/ContributionMetricsBuilder.swift` (Version 2.8)
+
+- **Purpose:** Pure, deterministic builder that computes muscle contribution breakdowns for an exercise.
+- **Outputs:** Major group slices (fractions), specific muscle slices grouped by major group, and validation messages.
+- **Usage:** Consumed by `ExerciseInfoView` and the Exercise Detail section in `ContentView` to remove duplicate logic.
+
+### 5.19. `Utilities/PreviewDependencies.swift` (Version 2.8)
+
+- **Purpose:** Lightweight preview bootstrapper that wires a temporary `ModelContainer`, repositories via `RepositoryProvider`, and initializes `ThemeManager` from `SettingsRepository`.
+- **Usage:** `dependencies.apply(to:)` in previews to ensure consistent environment setup without directly mutating `ThemeManager` internals.
 
 ## 6. Key Functionalities & Features
 
@@ -544,10 +560,13 @@ All data models are located in the `Models/` directory.
 ## 8. Performance Considerations & Optimizations
 
 - SwiftData lazy loading and `@Query` efficiency.
-- Explicit `modelContext.save()` calls for predictable persistence.
-- UI responsiveness through SwiftUI's declarative updates.
+- Explicit `modelContext.save()` calls for predictable persistence in repositories.
+- UI responsiveness through SwiftUI's declarative updates and ViewModel state isolation.
 - **Enhanced Navigation:** `NavigationStack` usage throughout for better performance and user experience.
-- JSON operations are synchronous; consider backgrounding for extremely large datasets if needed.
+- **Import Off‑Main:** Heavy JSON decode runs off the main thread; only apply-import and UI updates occur on the main actor.
+- **Deterministic Conversions:** Centralized `WeightConversionService` enforces 0.5 kg / 0.1 lb increments for stable, idempotent conversions.
+- **Reduced Duplication:** `ContributionMetricsBuilder` consolidates contribution calculations across views.
+- **Structured Logging:** `OSLog` instrumentation for import/export paths.
 
 ## 9. Inter-Component Interactions
 
@@ -557,7 +576,7 @@ All data models are located in the `Models/` directory.
 - **`ExerciseDetailView` -> `WorkoutInputView`**: Sheet presentation for new workout logging.
 - **`ExerciseDetailView` -> `WorkoutSessionDetailView`**: Direct navigation to workout details.
 - **`WorkoutSessionDetailView`**: Manages its own sheets for editing set/date with `NavigationStack`.
-- Views interact with `@Environment(\.modelContext)` and `@Query` for data operations and reactive UI.
+- Views interact with repositories (via environment) for data operations and use `@Query` for reactive observation.
 
 ## 10. Real-World Use Cases
 
@@ -593,7 +612,7 @@ All data models are located in the `Models/` directory.
 - **App Icon:** Custom `AppIcon.swift` for design. Rasterized assets needed for `Assets.xcassets`.
 - **Deployment:** Standard App Store submission.
 
-## 12. Recent Updates (Version 2.7)
+## 12. Recent Updates (Version 2.8)
 
 ### 12.1. Exercise Taxonomy & Comprehensive Muscle Tracking Implementation
 
@@ -642,6 +661,26 @@ All data models are located in the `Models/` directory.
   - Async theme initialization for non-blocking app startup.
   - Enhanced relationship management with proper cascade rules.
   - Improved error handling and user feedback throughout the taxonomy system.
+
+### 12.4. MVVM + Repository Layer Adoption (Version 2.8)
+
+- Introduced protocol-first repositories (`ExerciseRepository`, `WorkoutRepository`, `SettingsRepository`) with SwiftData-backed implementations.
+- Injected repositories via environment using a `RepositoryProvider` composition root.
+- Extracted ViewModels for major screens to isolate presentation logic and intents from Views.
+
+### 12.5. Standardized Weight Rounding (Version 2.8)
+
+- Removed precision options and legacy rounding. All weights normalize to 0.5 kg / 0.1 lb increments across the app and export/import paths.
+- Ensures deterministic displays and idempotent conversions within the documented increments.
+
+### 12.6. Minimal-Shape Import + Observability (Version 2.8)
+
+- Heavy JSON decode now runs off the main thread; `applyImport` executes on the main actor.
+- Added structured logging with `OSLog` for start/end and error telemetry.
+
+### 12.7. Contribution Metrics Consolidation (Version 2.8)
+
+- Introduced `ContributionMetricsBuilder` and refactored `ExerciseInfoView` and Exercise Detail section to reuse the builder, removing duplicate logic.
 
 ## 13. Previous Updates (Version 2.5)
 
@@ -781,3 +820,4 @@ All data models are located in the `Models/` directory.
 - **Localization**
 - **Accessibility Enhancements**
 - **Bodyweight Progression Tracking** (weighted pull-ups, progression to harder variations)
+  - **Architecture:** Backed by `ContentViewModel` for filters, editor presentation, and delete flows. Uses `exerciseRepository` via environment. Modernized `onChange` handlers (iOS 17 two-parameter variant).

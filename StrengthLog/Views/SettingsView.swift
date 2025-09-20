@@ -2,24 +2,16 @@ import SwiftUI
 import SwiftData
 
 struct SettingsView: View {
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.settingsRepository) private var settingsRepository
     @EnvironmentObject private var themeManager: ThemeManager
-    @Query var settings: [AppSettings]
-    
+
     private var currentSettings: AppSettings {
         if let managerSettings = themeManager.currentSettings {
             return managerSettings
         }
-        if let existingSettings = settings.first {
-            return existingSettings
-        }
-        let newSettings = AppSettings()
-        modelContext.insert(newSettings)
-        try? modelContext.save()
-        themeManager.objectWillChange.send()
-        themeManager.currentSettings = newSettings
-        return newSettings
+        themeManager.initialize(with: settingsRepository)
+        return themeManager.currentSettings ?? AppSettings()
     }
     
     var body: some View {
@@ -195,7 +187,7 @@ struct SettingsView: View {
                     }
                     .padding(.vertical, 4)
                 }
-                
+
                 Section(header: HStack {
                     Image(systemName: "info.circle.fill")
                         .foregroundColor(.accentColor)
@@ -279,7 +271,6 @@ struct SettingsView: View {
         for: ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self, AppSettings.self,
         configurations: config
     )
-    
-    return SettingsView()
-        .modelContainer(container)
+    let dependencies = PreviewDependencies(container: container)
+    return dependencies.apply(to: SettingsView())
 }

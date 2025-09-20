@@ -2,61 +2,11 @@ import SwiftUI
 import SwiftData
 
 struct WorkoutHistoryListView: View {
+    @Environment(\.workoutRepository) private var workoutRepository
     @Query(sort: [SortDescriptor(\WorkoutRecord.date, order: .reverse)]) var allWorkoutRecords: [WorkoutRecord]
     @EnvironmentObject private var themeManager: ThemeManager
-    
-    @State private var timeFilter: TimeFilter = .week
-    @State private var currentDateRange: (start: Date, end: Date) = Calendar.current.weekDateRange(for: Date())
-    
-    enum TimeFilter: String, CaseIterable, Identifiable {
-        case week = "Week"
-        case month = "Month"
-        case year = "Year"
-        case allTime = "All Time"
-        
-        var id: String { self.rawValue }
-    }
-    
-    var displayWorkouts: [Date: [WorkoutRecord]] {
-        let calendar = Calendar.current
-        
-        // Filter records by the selected time period
-        let filteredRecords: [WorkoutRecord]
-        if timeFilter == .allTime {
-            filteredRecords = allWorkoutRecords
-        } else {
-            filteredRecords = allWorkoutRecords.filter { record in
-                (record.date >= currentDateRange.start && record.date < currentDateRange.end)
-            }
-        }
-        
-        // Group records by day
-        var recordsByDay: [Date: [WorkoutRecord]] = [:]
-        for record in filteredRecords {
-            let startOfDay = calendar.startOfDay(for: record.date)
-            if recordsByDay[startOfDay] == nil {
-                recordsByDay[startOfDay] = []
-            }
-            recordsByDay[startOfDay]?.append(record)
-        }
-        
-        return recordsByDay
-    }
-    
-    var dateTitle: String {
-        switch timeFilter {
-        case .week:
-            let dateFormat = Date.FormatStyle().month().day()
-            return "\(currentDateRange.start.formatted(dateFormat)) - \(Calendar.current.date(byAdding: .day, value: -1, to: currentDateRange.end)!.formatted(dateFormat))"
-        case .month:
-            return currentDateRange.start.formatted(.dateTime.month().year())
-        case .year:
-            return currentDateRange.start.formatted(.dateTime.year())
-        case .allTime:
-            return "All Time"
-        }
-    }
-    
+    @StateObject private var viewModel = WorkoutHistoryViewModel()
+
     var body: some View {
         VStack(spacing: 0) {
             // Enhanced header section with background
@@ -72,20 +22,17 @@ struct WorkoutHistoryListView: View {
                         Spacer()
                     }
                     
-                    Picker("Filter", selection: $timeFilter) {
-                        ForEach(TimeFilter.allCases) { filter in
+                    Picker("Filter", selection: $viewModel.timeFilter) {
+                        ForEach(WorkoutHistoryViewModel.TimeFilter.allCases) { filter in
                             Text(filter.rawValue).tag(filter)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .onChange(of: timeFilter) { oldValue, newValue in
-                        updateDateRange(for: newValue)
-                    }
                 }
                 .padding(.horizontal, 20)
                 
                 // Enhanced date range navigation
-                if timeFilter != .allTime {
+                if viewModel.timeFilter != .allTime {
                     VStack(spacing: 12) {
                         HStack {
                             Button(action: {
@@ -102,10 +49,10 @@ struct WorkoutHistoryListView: View {
                             Spacer()
                             
                             VStack(spacing: 2) {
-                                Text(dateTitle)
+                                Text(viewModel.dateTitle())
                                     .font(.headline)
                                     .fontWeight(.semibold)
-                                Text(timeFilter.rawValue)
+                                Text(viewModel.timeFilter.rawValue)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -126,26 +73,26 @@ struct WorkoutHistoryListView: View {
                         .padding(.horizontal, 20)
                         
                         // Summary stats for the period
-                        if !displayWorkouts.isEmpty {
+                        if !viewModel.displayWorkouts.isEmpty {
                             HStack(spacing: 24) {
                                 StatCard(
                                     icon: "calendar.badge.plus",
                                     title: "Days",
-                                    value: "\(displayWorkouts.keys.count)",
+                                    value: "\(viewModel.displayWorkouts.keys.count)",
                                     color: .green
                                 )
                                 
                                 StatCard(
                                     icon: "dumbbell.fill",
                                     title: "Workouts",
-                                    value: "\(displayWorkouts.values.flatMap { $0 }.count)",
+                                    value: "\(viewModel.displayWorkouts.values.flatMap { $0 }.count)",
                                     color: .blue
                                 )
                                 
                                 StatCard(
                                     icon: "chart.bar.fill",
                                     title: "Total Sets",
-                                    value: "\(displayWorkouts.values.flatMap { $0 }.reduce(0) { $0 + $1.setEntries.count })",
+                                    value: "\(viewModel.displayWorkouts.values.flatMap { $0 }.reduce(0) { $0 + $1.setEntries.count })",
                                     color: .orange
                                 )
                             }
@@ -158,7 +105,7 @@ struct WorkoutHistoryListView: View {
             .background(Color(.systemGroupedBackground))
             
             // Workout list with enhanced styling
-            if displayWorkouts.isEmpty {
+            if viewModel.displayWorkouts.isEmpty {
                 Spacer()
                 ContentUnavailableView(
                     "No Workouts",
@@ -168,8 +115,8 @@ struct WorkoutHistoryListView: View {
                 Spacer()
             } else {
                 List {
-                    ForEach(displayWorkouts.keys.sorted().reversed(), id: \.self) { day in
-                        if let workouts = displayWorkouts[day] {
+                    ForEach(viewModel.displayWorkouts.keys.sorted().reversed(), id: \.self) { day in
+                        if let workouts = viewModel.displayWorkouts[day] {
                             NavigationLink {
                                 DailyWorkoutsView(date: day)
                             } label: {
@@ -187,58 +134,17 @@ struct WorkoutHistoryListView: View {
         }
         .navigationTitle("Workout History")
         .navigationBarTitleDisplayMode(.large)
-        .onAppear {
-            updateDateRange(for: timeFilter)
+        .task {
+            viewModel.configureIfNeeded(repository: workoutRepository)
+            viewModel.updateWorkouts(allWorkoutRecords)
+        }
+        .onChange(of: allWorkoutRecords) { _, newValue in
+            viewModel.updateWorkouts(newValue)
         }
     }
-    
-    private func updateDateRange(for filter: TimeFilter) {
-        switch filter {
-        case .week:
-            currentDateRange = Calendar.current.weekDateRange(for: Date())
-        case .month:
-            currentDateRange = Calendar.current.monthDateRange(for: Date())
-        case .year:
-            currentDateRange = Calendar.current.yearDateRange(for: Date())
-        case .allTime:
-            // No specific range for "All Time"
-            let distantPast = Date.distantPast
-            let distantFuture = Date.distantFuture
-            currentDateRange = (distantPast, distantFuture)
-        }
-    }
-    
+
     private func navigateDate(forward: Bool) {
-        let calendar = Calendar.current
-        var dateComponent: Calendar.Component
-        var value: Int
-        
-        switch timeFilter {
-        case .week:
-            dateComponent = .weekOfYear
-            value = forward ? 1 : -1
-        case .month:
-            dateComponent = .month
-            value = forward ? 1 : -1
-        case .year:
-            dateComponent = .year
-            value = forward ? 1 : -1
-        case .allTime:
-            return // No navigation for "All Time"
-        }
-        
-        if let newDate = calendar.date(byAdding: dateComponent, value: value, to: currentDateRange.start) {
-            switch timeFilter {
-            case .week:
-                currentDateRange = calendar.weekDateRange(for: newDate)
-            case .month:
-                currentDateRange = calendar.monthDateRange(for: newDate)
-            case .year:
-                currentDateRange = calendar.yearDateRange(for: newDate)
-            case .allTime:
-                break // Should not happen
-            }
-        }
+        viewModel.navigateDate(forward: forward)
     }
 }
 
@@ -530,15 +436,10 @@ private enum WorkoutHistoryListViewPreviewFactory {
             set.workoutRecord?.setEntries.append(set)
         }
         
-        let appSettings = AppSettings()
-        container.mainContext.insert(appSettings)
-        let themeManager = ThemeManager()
-        themeManager.currentSettings = appSettings
+        let dependencies = PreviewDependencies(container: container)
 
-        return NavigationStack {
+        return dependencies.apply(to: NavigationStack {
             WorkoutHistoryListView()
-        }
-        .modelContainer(container)
-        .environmentObject(themeManager)
+        })
     }
 }

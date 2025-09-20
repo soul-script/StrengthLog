@@ -51,16 +51,33 @@ struct ThemeAwareContentView: View {
     @Environment(\.modelContext) private var modelContext
     @StateObject private var themeManager = ThemeManager()
     @State private var hasInitializedTheme = false
-    
+    @State private var repositoryProvider: RepositoryProvider?
+
     var body: some View {
-        ContentView()
-            .environmentObject(themeManager)
-            .task {
-                guard await MainActor.run(body: { !hasInitializedTheme }) else { return }
-                await MainActor.run { hasInitializedTheme = true }
-                await themeManager.initialize(with: modelContext)
+        Group {
+            if let provider = repositoryProvider {
+                ContentView()
+                    .environmentObject(themeManager)
+                    .environment(\.exerciseRepository, provider.exerciseRepository)
+                    .environment(\.workoutRepository, provider.workoutRepository)
+                    .environment(\.settingsRepository, provider.settingsRepository)
+                    .preferredColorScheme(themeManager.colorScheme)
+                    .tint(themeManager.accentColor)
+            } else {
+                ProgressView()
             }
-            .preferredColorScheme(themeManager.colorScheme)
-            .tint(themeManager.accentColor)
+        }
+        .task {
+            await MainActor.run {
+                if repositoryProvider == nil {
+                    repositoryProvider = RepositoryProvider(context: modelContext)
+                }
+
+                if let provider = repositoryProvider, !hasInitializedTheme {
+                    hasInitializedTheme = true
+                    themeManager.initialize(with: provider.settingsRepository)
+                }
+            }
+        }
     }
 }

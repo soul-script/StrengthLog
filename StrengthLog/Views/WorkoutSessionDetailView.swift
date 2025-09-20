@@ -471,14 +471,9 @@ private enum WorkoutSessionDetailViewPreviewFactory {
         container.mainContext.insert(set2)
         record.setEntries.append(contentsOf: [set1, set2])
         
-        let appSettings = AppSettings()
-        container.mainContext.insert(appSettings)
-        let themeManager = ThemeManager()
-        themeManager.currentSettings = appSettings
+        let dependencies = PreviewDependencies(container: container)
 
-        return WorkoutSessionDetailView(workoutRecord: record)
-            .modelContainer(container)
-            .environmentObject(themeManager)
+        return dependencies.apply(to: WorkoutSessionDetailView(workoutRecord: record))
             .themeAware()
     }
 }

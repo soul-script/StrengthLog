@@ -480,14 +480,8 @@ struct ProgressChartsView_Previews: PreviewProvider {
                 configurations: config
             )
             createSampleData(modelContext: container.mainContext)
-            let appSettings = AppSettings()
-            container.mainContext.insert(appSettings)
-            let themeManager = ThemeManager()
-            themeManager.currentSettings = appSettings
-            
-            return ProgressChartsView()
-                .modelContainer(container)
-                .environmentObject(themeManager)
+            let dependencies = PreviewDependencies(container: container)
+            return dependencies.apply(to: ProgressChartsView())
         }
     }
-} 
+}

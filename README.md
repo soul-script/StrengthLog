@@ -51,6 +51,7 @@
 - **Enhanced Data Management:**
   - **Advanced Export:** Securely back up all your workout data (exercises, workouts, sets, muscle contributions, taxonomy data, and theme preferences) to a JSON file with dual kilogram and pound storage for every set.
   - **Smart Import:** Restore your data from a previously exported JSON file with automatic taxonomy reconstruction and backward compatibility. (Note: Importing replaces existing data).
+  - **Non‑Blocking Import:** Heavy JSON decode runs off the main thread; only data application and UI updates occur on the main thread to keep the app responsive.
   - **User-Controlled Reference Data:** On-demand restoration of default muscle groups, specific muscles, exercise categories, and exercise templates with user feedback.
   - **Reference Data Manager:** Comprehensive interface for managing muscle groups, specific muscles, and exercise categories with validation and relationship tracking.
   - **Enhanced Database Statistics:** View detailed statistics including exercise counts by category, muscle group distributions, and contribution data.
@@ -104,6 +105,11 @@
 StrengthLog is currently feature-complete based on its initial and expanded scope, including robust workout logging with bodyweight exercise support, history tracking with improved navigation, progress visualization, comprehensive data management, and modern UI design.
 
 Recent updates include:
+
+- **MVVM + Repositories & DI (v2.8):** Introduced ViewModels for major screens and a repository layer over SwiftData with dependency injection via environment, improving testability, performance, and separation of concerns without changing UI behavior.
+- **Standardized Weight Rounding (v2.8):** All weights normalize to documented increments (0.5 kg / 0.1 lb). Precision options and legacy modes were removed; conversions are deterministic and idempotent within these increments.
+- **Faster, Safer Import (v2.8):** Implemented minimal-shape import: JSON decoding now occurs off the main thread with `OSLog` instrumentation; apply-import and UI state updates remain on the main thread.
+- **De-duplicated Metrics (v2.8):** Added a pure `ContributionMetricsBuilder` used across exercise info/detail views to compute contribution breakdowns consistently.
 
 - **Exercise Taxonomy & Enhanced Weight Management (v2.7):** Complete muscle tracking system with major muscle groups, specific muscle contributions, and percentage-based tracking. Enhanced weight conversion service with dual-unit storage and improved theme management architecture.
 - **Comprehensive Muscle Tracking System (v2.7):** Added sophisticated exercise taxonomy with major muscle groups, specific muscles, exercise categories, and contribution tracking. Includes template-based exercise creation and validation systems.

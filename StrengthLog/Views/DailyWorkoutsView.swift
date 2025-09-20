@@ -323,15 +323,10 @@ private enum DailyWorkoutsViewPreviewFactory {
         morningWorkout.setEntries = [set1, set2]
         eveningWorkout.setEntries = [set3]
         
-        let appSettings = AppSettings()
-        container.mainContext.insert(appSettings)
-        let themeManager = ThemeManager()
-        themeManager.currentSettings = appSettings
+        let dependencies = PreviewDependencies(container: container)
 
-        return NavigationStack {
+        return dependencies.apply(to: NavigationStack {
             DailyWorkoutsView(date: today)
-        }
-        .modelContainer(container)
-        .environmentObject(themeManager)
+        })
     }
 }

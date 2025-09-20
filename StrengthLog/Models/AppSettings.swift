@@ -9,7 +9,7 @@ final class AppSettings {
     var accentColor: AppAccentColor
     var showAdvancedStats: Bool
     var defaultWeightUnit: WeightUnit
-    
+
     init() {
         self.id = UUID()
         self.themeMode = .system

@@ -1,46 +1,36 @@
 import SwiftUI
-import SwiftData
+import OSLog
 
 /// A utility class to help manage theme-aware functionality throughout the app
 class ThemeManager: ObservableObject {
-    @Published var currentSettings: AppSettings?
+    @Published private(set) var currentSettings: AppSettings?
     
-    private var modelContext: ModelContext?
+    private var settingsRepository: SettingsRepository?
+    private let logger = Logger(subsystem: "com.adityamishra.StrengthLog", category: "ThemeManager")
     
     init() {}
     
     @MainActor
-    func initialize(with context: ModelContext) {
-        self.modelContext = context
+    func initialize(with repository: SettingsRepository) {
+        settingsRepository = repository
         loadSettings()
     }
     
     @MainActor
     private func loadSettings() {
-        guard let context = modelContext else { return }
-        
-        let descriptor = FetchDescriptor<AppSettings>()
+        guard let repository = settingsRepository else { return }
         do {
-            let settings = try context.fetch(descriptor)
-            if let existingSettings = settings.first {
-                objectWillChange.send()
-                currentSettings = existingSettings
-            } else {
-                // Create default settings
-                let newSettings = AppSettings()
-                context.insert(newSettings)
-                try context.save()
-                objectWillChange.send()
-                currentSettings = newSettings
-            }
-        } catch {
-            print("Error loading settings: \(error)")
-            // Fallback to default settings
+            let settings = try repository.fetchOrCreateSettings()
             objectWillChange.send()
-            currentSettings = AppSettings()
+            currentSettings = settings
+        } catch {
+            logger.error("Error loading settings: \(String(describing: error))")
+            let fallback = AppSettings()
+            objectWillChange.send()
+            currentSettings = fallback
         }
     }
-    
+
     @MainActor
     func updateTheme(_ themeMode: ThemeMode) {
         objectWillChange.send()
@@ -71,11 +61,11 @@ class ThemeManager: ObservableObject {
     
     @MainActor
     private func saveSettings() {
-        guard let context = modelContext else { return }
+        guard let repository = settingsRepository, let settings = currentSettings else { return }
         do {
-            try context.save()
+            try repository.save(settings: settings)
         } catch {
-            print("Error saving settings: \(error)")
+            logger.error("Error saving settings: \(String(describing: error))")
         }
     }
     
@@ -100,6 +90,7 @@ class ThemeManager: ObservableObject {
     var showAdvancedStats: Bool {
         currentSettings?.showAdvancedStats ?? true
     }
+
 }
 
 /// Environment key for ThemeManager

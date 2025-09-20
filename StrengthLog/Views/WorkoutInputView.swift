@@ -3,41 +3,17 @@ import SwiftData
 import Foundation
 
 struct WorkoutInputView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.workoutRepository) private var workoutRepository
     @Environment(\.dismiss) var dismiss
     @EnvironmentObject private var themeManager: ThemeManager
 
     var exerciseDefinition: ExerciseDefinition
 
-    @State private var workoutDate: Date = Date.todayAtMidnight
-    @State private var sets: [TemporarySetEntry] = []
-    @State private var weightString: String = ""
-    @State private var repsString: String = ""
-    @State private var isBodyweightExercise: Bool = false
-    
-    // Computed property for current total volume
-    struct TemporarySetEntry: Identifiable {
-        let id = UUID()
-        var measurement: WeightMeasurement?
-        var reps: Int
+    @StateObject private var viewModel: WorkoutInputViewModel
 
-        var isWeighted: Bool {
-            measurement != nil
-        }
-
-        func weight(in unit: WeightUnit) -> Double? {
-            measurement?.value(in: unit)
-        }
-
-        var oneRepMaxKilograms: Double {
-            guard let measurement else { return 0 }
-            return calculateOneRepMax(weight: measurement.kilograms, reps: reps)
-        }
-
-        func displayOneRepMax(in unit: WeightUnit) -> Int? {
-            guard measurement != nil else { return nil }
-            return Int(convertOneRepMax(oneRepMaxKilograms, to: unit))
-        }
+    init(exerciseDefinition: ExerciseDefinition) {
+        self.exerciseDefinition = exerciseDefinition
+        _viewModel = StateObject(wrappedValue: WorkoutInputViewModel(exercise: exerciseDefinition))
     }
 
     var body: some View {
@@ -73,7 +49,7 @@ struct WorkoutInputView: View {
                         
                         Spacer()
                         
-                        DatePicker("", selection: $workoutDate, displayedComponents: .date)
+                        DatePicker("", selection: $viewModel.workoutDate, displayedComponents: .date)
                             .labelsHidden()
                     }
                     .padding(.vertical, 4)
@@ -94,7 +70,7 @@ struct WorkoutInputView: View {
                                 .fill(Color.purple.opacity(0.1))
                                 .frame(width: 32, height: 32)
                             
-                            Image(systemName: isBodyweightExercise ? "figure.walk" : "dumbbell.fill")
+                            Image(systemName: viewModel.isBodyweightExercise ? "figure.walk" : "dumbbell.fill")
                                 .foregroundColor(.purple)
                                 .font(.system(size: 16, weight: .medium))
                         }
@@ -102,19 +78,17 @@ struct WorkoutInputView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Bodyweight Exercise")
                                 .font(.system(size: 16, weight: .medium))
-                            Text(isBodyweightExercise ? "No external weight" : "Uses external weight")
+                            Text(viewModel.isBodyweightExercise ? "No external weight" : "Uses external weight")
                                 .font(.system(size: 13))
                                 .foregroundColor(.secondary)
                         }
                         
                         Spacer()
                         
-                        Toggle("", isOn: $isBodyweightExercise)
-                            .onChange(of: isBodyweightExercise) { _, newValue in
-                                if newValue {
-                                    weightString = ""
-                                }
-                            }
+                        Toggle("", isOn: Binding(
+                            get: { viewModel.isBodyweightExercise },
+                            set: { viewModel.setBodyweight($0) }
+                        ))
                     }
                     .padding(.vertical, 4)
                 }
@@ -128,7 +102,7 @@ struct WorkoutInputView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }) {
-                    if !isBodyweightExercise {
+                    if !viewModel.isBodyweightExercise {
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8)
@@ -144,10 +118,10 @@ struct WorkoutInputView: View {
                                 .font(.system(size: 16, weight: .medium))
                                 .frame(width: 60, alignment: .leading)
                             
-                            TextField(themeManager.weightUnit.abbreviation, text: $weightString)
-                                .keyboardType(.decimalPad)
-                                .multilineTextAlignment(.trailing)
-                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        TextField(themeManager.weightUnit.abbreviation, text: $viewModel.weightInput)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
                         }
                         .padding(.vertical, 4)
                     }
@@ -167,7 +141,7 @@ struct WorkoutInputView: View {
                             .font(.system(size: 16, weight: .medium))
                             .frame(width: 60, alignment: .leading)
                         
-                        TextField("Count", text: $repsString)
+                        TextField("Count", text: $viewModel.repsInput)
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -186,15 +160,15 @@ struct WorkoutInputView: View {
                         .frame(height: 44)
                         .background(
                             RoundedRectangle(cornerRadius: 10)
-                                .fill(isValidInput() ? Color.accentColor : Color.gray)
+                                .fill(viewModel.isValidInput(preferredUnit: themeManager.weightUnit) ? Color.accentColor : Color.gray)
                         )
                     }
-                    .disabled(!isValidInput())
+                    .disabled(!viewModel.isValidInput(preferredUnit: themeManager.weightUnit))
                     .buttonStyle(PlainButtonStyle())
                     .padding(.vertical, 4)
                 }
 
-                if !sets.isEmpty {
+                if !viewModel.sets.isEmpty {
                     Section(header: HStack {
                         Image(systemName: "list.bullet.circle.fill")
                             .foregroundColor(.accentColor)
@@ -204,7 +178,7 @@ struct WorkoutInputView: View {
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                         Spacer()
-                        Text("\(sets.count)")
+                        Text("\(viewModel.sets.count)")
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 8)
@@ -212,16 +186,17 @@ struct WorkoutInputView: View {
                             .background(Color.secondary.opacity(0.2))
                             .clipShape(Capsule())
                     }) {
-                        ForEach(sets) { set in
+                        ForEach(viewModel.sets) { set in
                             HStack(spacing: 12) {
                                 ZStack {
                                     Circle()
                                         .fill(Color.accentColor.opacity(0.1))
                                         .frame(width: 28, height: 28)
-                                    
-                                    Text("\(sets.firstIndex(where: { $0.id == set.id })! + 1)")
-                                        .font(.system(size: 12, weight: .bold))
-                                        .foregroundColor(.accentColor)
+                                    if let index = viewModel.sets.firstIndex(where: { $0.id == set.id }) {
+                                        Text("\(index + 1)")
+                                            .font(.system(size: 12, weight: .bold))
+                                            .foregroundColor(.accentColor)
+                                    }
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -272,9 +247,9 @@ struct WorkoutInputView: View {
                             Text("Total Volume")
                                 .font(.system(size: 16, weight: .medium))
                             
-                            let hasWeightedSets = sets.contains(where: { $0.isWeighted })
-                            let hasBodyweightSets = sets.contains(where: { !$0.isWeighted })
-                            let currentTotalVolume = totalVolume(in: themeManager.weightUnit)
+                            let hasWeightedSets = viewModel.sets.contains(where: { $0.isWeighted })
+                            let hasBodyweightSets = viewModel.sets.contains(where: { !$0.isWeighted })
+                            let currentTotalVolume = viewModel.totalVolume(in: themeManager.weightUnit)
                             if hasWeightedSets && hasBodyweightSets {
                                 Text("\(Int(currentTotalVolume)) \(themeManager.weightUnit.abbreviation) vol (mixed)")
                                     .font(.system(size: 20, weight: .bold))
@@ -306,96 +281,35 @@ struct WorkoutInputView: View {
                     Button("Save Workout") {
                         saveWorkout()
                     }
-                    .disabled(sets.isEmpty)
+                            .disabled(viewModel.sets.isEmpty)
                 }
             }
         }
+        .task {
+            viewModel.configureIfNeeded(repository: workoutRepository)
+        }
+        .alert("Unable to Save", isPresented: Binding(
+            get: { viewModel.saveErrorMessage != nil },
+            set: { if !$0 { viewModel.resetError() } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.resetError() }
+        } message: {
+            Text(viewModel.saveErrorMessage ?? "")
+        }
     }
     
-    private func totalVolume(in unit: WeightUnit) -> Double {
-        sets.reduce(0) { total, set in
-            if let weight = set.weight(in: unit) {
-                return total + (weight * Double(set.reps))
-            }
-            return total + Double(set.reps)
-        }
-    }
-
-    private func isValidInput() -> Bool {
-        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)), reps > 0 else {
-            return false
-        }
-
-        if isBodyweightExercise {
-            return true
-        }
-
-        guard
-            let rawWeight = Double(weightString.trimmingCharacters(in: .whitespaces)),
-            WeightConversionService.shared.measurement(from: rawWeight, unit: themeManager.weightUnit) != nil
-        else {
-            return false
-        }
-
-        return true
-    }
-
     private func addSet() {
-        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)), reps > 0 else {
-            return
-        }
-
-        let measurement: WeightMeasurement?
-        if isBodyweightExercise {
-            measurement = nil
-        } else {
-            guard
-                let rawWeight = Double(weightString.trimmingCharacters(in: .whitespaces)),
-                let normalized = WeightConversionService.shared.measurement(from: rawWeight, unit: themeManager.weightUnit)
-            else {
-                return
-            }
-            measurement = normalized
-        }
-
-        let newSet = TemporarySetEntry(measurement: measurement, reps: reps)
-        sets.append(newSet)
+        viewModel.addSet(preferredUnit: themeManager.weightUnit)
     }
 
     private func deleteSet(at offsets: IndexSet) {
-        sets.remove(atOffsets: offsets)
+        viewModel.deleteSet(at: offsets)
     }
 
     private func saveWorkout() {
-        // Create the workout record with midnight timestamp
-        let newWorkoutRecord = WorkoutRecord(date: workoutDate.midnight, exerciseDefinition: exerciseDefinition)
-        modelContext.insert(newWorkoutRecord)
-
-        // Add all sets to the workout record
-        for tempSet in sets {
-            let setEntry = SetEntry(
-                weight: tempSet.measurement?.kilograms,
-                weightInPounds: tempSet.measurement?.pounds,
-                reps: tempSet.reps,
-                workoutRecord: newWorkoutRecord
-            )
-            modelContext.insert(setEntry)
-            newWorkoutRecord.setEntries.append(setEntry)
+        viewModel.persistWorkout(preferredUnit: themeManager.weightUnit) {
+            dismiss()
         }
-        
-        // Explicitly add the workout record to the exercise's workoutRecords array
-        // This ensures the relationship is properly established in both directions
-        exerciseDefinition.workoutRecords.append(newWorkoutRecord)
-        
-        // Try to save the context explicitly to ensure changes are persisted immediately
-        do {
-            try modelContext.save()
-        } catch {
-            print("Error saving workout: \(error)")
-        }
-        
-        // Dismiss the view after saving
-        dismiss()
     }
 }
 
@@ -431,14 +345,8 @@ private enum WorkoutInputViewPreviewFactory {
         container.mainContext.insert(sampleSet)
         workout.setEntries.append(sampleSet)
 
-        let appSettings = AppSettings()
-        container.mainContext.insert(appSettings)
+        let dependencies = PreviewDependencies(container: container)
 
-        let themeManager = ThemeManager()
-        themeManager.currentSettings = appSettings
-
-        return WorkoutInputView(exerciseDefinition: exercise)
-            .modelContainer(container)
-            .environmentObject(themeManager)
+        return dependencies.apply(to: WorkoutInputView(exerciseDefinition: exercise))
     }
 }

@@ -62,9 +62,9 @@ struct ExerciseEditorView: View {
             }
         }
         .onAppear(perform: configureReferences)
-        .onChange(of: categoryTags.map(\.id)) { _ in configureReferences() }
-        .onChange(of: majorGroups.map(\.id)) { _ in configureReferences() }
-        .onChange(of: specificMuscles.map(\.id)) { _ in configureReferences() }
+        .onChange(of: categoryTags.map(\.id)) { _, _ in configureReferences() }
+        .onChange(of: majorGroups.map(\.id)) { _, _ in configureReferences() }
+        .onChange(of: specificMuscles.map(\.id)) { _, _ in configureReferences() }
         .alert("Validation", isPresented: $viewModel.showingBlockingError, actions: {
             Button("OK", role: .cancel) { viewModel.showingBlockingError = false }
         }, message: {
@@ -84,7 +84,7 @@ struct ExerciseEditorView: View {
         Section(header: label("Exercise Details", systemImage: "info.circle")) {
             TextField("Exercise name", text: $viewModel.name)
                 .textInputAutocapitalization(.words)
-                .onChange(of: viewModel.name) { _ in viewModel.validate() }
+                .onChange(of: viewModel.name) { _, _ in viewModel.validate() }
 
             if let template = ExerciseTemplateProvider.template(for: viewModel.name) {
                 Button {
@@ -593,7 +593,7 @@ final class ExerciseEditorViewModel: ObservableObject {
         ratios = normalizeRatios(ratios)
         let rawShares = ratios.mapValues { Double(groupShare) * $0 }
         var result = rawShares.mapValues { Int(floor($0)) }
-        var assigned = result.values.reduce(0, +)
+        let assigned = result.values.reduce(0, +)
         var remainder = groupShare - assigned
 
         if remainder > 0 {
