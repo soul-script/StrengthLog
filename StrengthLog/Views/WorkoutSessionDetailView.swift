@@ -4,7 +4,7 @@ import Foundation
 
 struct WorkoutSessionDetailView: View {
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.themeManager) var themeManager
+    @EnvironmentObject var themeManager: ThemeManager
     var workoutRecord: WorkoutRecord
     @State private var selectedSet: SetEntry? = nil
     @State private var isEditingSet: Bool = false
@@ -70,19 +70,20 @@ struct WorkoutSessionDetailView: View {
                                     .foregroundColor(.secondary)
                                     .textCase(.uppercase)
                                 
-                                let hasWeightedSets = workoutRecord.setEntries.contains { $0.weight != nil }
-                                let hasBodyweightSets = workoutRecord.setEntries.contains { $0.weight == nil }
+                                let hasWeightedSets = workoutRecord.setEntries.contains { $0.isWeighted }
+                                let hasBodyweightSets = workoutRecord.setEntries.contains { !$0.isWeighted }
+                                let totalVolume = workoutRecord.totalVolume(in: themeManager.weightUnit)
                                 
                                 if hasWeightedSets && hasBodyweightSets {
-                                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1))) (mixed)")
+                                    Text("\(Int(totalVolume)) \(themeManager.weightUnit.abbreviation) vol (mixed)")
                                         .font(.title3)
                                         .fontWeight(.semibold)
                                 } else if hasBodyweightSets && !hasWeightedSets {
-                                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(0))) reps")
+                                    Text("\(Int(totalVolume)) reps")
                                         .font(.title3)
                                         .fontWeight(.semibold)
                                 } else {
-                                    Text("\(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1)))")
+                                    Text("\(Int(totalVolume)) \(themeManager.weightUnit.abbreviation) vol")
                                         .font(.title3)
                                         .fontWeight(.semibold)
                                 }
@@ -137,8 +138,8 @@ struct WorkoutSessionDetailView: View {
                                     .clipShape(Circle())
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    if let weight = set.weight {
-                                        Text("\(weight, format: .number.precision(.fractionLength(1))) kg × \(set.reps) reps")
+                                    if let weight = set.weightValue(in: themeManager.weightUnit) {
+                                        Text("\(Int(weight)) \(themeManager.weightUnit.abbreviation) × \(set.reps) reps")
                                             .font(.subheadline)
                                             .fontWeight(.medium)
                                     } else {
@@ -147,8 +148,9 @@ struct WorkoutSessionDetailView: View {
                                             .fontWeight(.medium)
                                     }
                                     
-                                    if set.calculatedOneRepMax > 0 {
-                                        Text("Est. 1RM: \(set.calculatedOneRepMax, format: .number.precision(.fractionLength(1))) kg")
+                                    let oneRepMax = convertOneRepMax(set.calculatedOneRepMax, to: themeManager.weightUnit)
+                                    if oneRepMax > 0 {
+                                        Text("Est. 1RM: \(Int(oneRepMax)) \(themeManager.weightUnit.abbreviation)")
                                             .font(.caption)
                                             .foregroundColor(.secondary)
                                     }
@@ -164,7 +166,7 @@ struct WorkoutSessionDetailView: View {
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 selectedSet = set
-                                editingWeight = set.weight ?? 0
+                                editingWeight = set.weightValue(in: themeManager.weightUnit) ?? 0
                                 editingReps = set.reps
                                 isEditingSet = true
                             }
@@ -211,7 +213,7 @@ struct WorkoutSessionDetailView: View {
                                 .frame(width: 20)
                             Text("Weight")
                             Spacer()
-                            TextField("kg", text: $newWeight)
+                            TextField(themeManager.weightUnit.abbreviation, text: $newWeight)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                                 .textFieldStyle(.roundedBorder)
@@ -273,7 +275,7 @@ struct WorkoutSessionDetailView: View {
                         Text("Edit Set")
                     }) {
                         Toggle(isOn: Binding(
-                            get: { selectedSet?.weight == nil },
+                            get: { !(selectedSet?.isWeighted ?? false) },
                             set: { isBodyweight in
                                 if isBodyweight {
                                     editingWeight = 0
@@ -290,7 +292,7 @@ struct WorkoutSessionDetailView: View {
                             }
                         }
                         
-                        if selectedSet?.weight != nil || editingWeight > 0 {
+                        if (selectedSet?.isWeighted ?? false) || editingWeight > 0 {
                             HStack {
                                 Image(systemName: "scalemass")
                                     .foregroundColor(.secondary)
@@ -298,7 +300,7 @@ struct WorkoutSessionDetailView: View {
                                     .frame(width: 20)
                                 Text("Weight")
                                 Spacer()
-                                TextField("kg", value: $editingWeight, formatter: NumberFormatter.decimal)
+                                TextField(themeManager.weightUnit.abbreviation, value: $editingWeight, formatter: NumberFormatter.decimal)
                                     .keyboardType(.decimalPad)
                                     .multilineTextAlignment(.trailing)
                                     .textFieldStyle(.roundedBorder)
@@ -332,9 +334,13 @@ struct WorkoutSessionDetailView: View {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("Save") {
                             if let set = selectedSet {
-                                set.weight = (editingWeight <= 0) ? nil : editingWeight
+                                let sanitized = editingWeight <= 0 ? nil : editingWeight
+                                if themeManager.weightUnit == .kg {
+                                    set.updateWeight(kilograms: sanitized)
+                                } else {
+                                    set.updateWeight(kilograms: nil, pounds: sanitized)
+                                }
                                 set.reps = editingReps
-                                set.updateOneRepMax()
                             }
                             isEditingSet = false
                         }
@@ -380,44 +386,50 @@ struct WorkoutSessionDetailView: View {
     
     // Validation for new set inputs
     private func isValidNewSet() -> Bool {
-        // Check reps first
-        guard let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
-              reps > 0 else {
+        guard let reps = Int(newReps.trimmingCharacters(in: .whitespaces)), reps > 0 else {
             return false
         }
-        
-        // For bodyweight exercises, only reps need to be valid
+
         if isBodyweightExercise {
             return true
         }
-        
-        // For weighted exercises, weight must also be valid
-        guard let weight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
-              weight > 0 else {
+
+        guard
+            let rawWeight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
+            WeightConversionService.shared.measurement(from: rawWeight, unit: themeManager.weightUnit) != nil
+        else {
             return false
         }
-        
+
         return true
     }
     
     // Add new set to the workout
     private func addNewSet() {
-        guard let reps = Int(newReps.trimmingCharacters(in: .whitespaces)),
-              reps > 0 else {
+        guard let reps = Int(newReps.trimmingCharacters(in: .whitespaces)), reps > 0 else {
             return
         }
         
-        let weight: Double? = isBodyweightExercise ? nil : Double(newWeight.trimmingCharacters(in: .whitespaces))
-        
-        // For weighted exercises, validate weight
-        if !isBodyweightExercise {
-            guard let validWeight = weight, validWeight > 0 else {
+        let measurement: WeightMeasurement?
+        if isBodyweightExercise {
+            measurement = nil
+        } else {
+            guard
+                let rawWeight = Double(newWeight.trimmingCharacters(in: .whitespaces)),
+                let normalized = WeightConversionService.shared.measurement(from: rawWeight, unit: themeManager.weightUnit)
+            else {
                 return
             }
+            measurement = normalized
         }
         
         // Create and add the new set
-        let newSet = SetEntry(weight: weight, reps: reps, workoutRecord: workoutRecord)
+        let newSet = SetEntry(
+            weight: measurement?.kilograms,
+            weightInPounds: measurement?.pounds,
+            reps: reps,
+            workoutRecord: workoutRecord
+        )
         modelContext.insert(newSet)
         workoutRecord.setEntries.append(newSet)
         
@@ -428,8 +440,12 @@ struct WorkoutSessionDetailView: View {
 }
 
 #Preview {
-    // Group all setup logic
-    let (record, container) = {
+    WorkoutSessionDetailViewPreviewFactory.make()
+}
+
+private enum WorkoutSessionDetailViewPreviewFactory {
+    @MainActor
+    static func make() -> some View {
         let config = ModelConfiguration(isStoredInMemoryOnly: true)
         let container = try! ModelContainer(
             for: ExerciseDefinition.self,
@@ -443,6 +459,7 @@ struct WorkoutSessionDetailView: View {
                  ExerciseSpecificContribution.self,
             configurations: config
         )
+        
         let exercise = ExerciseDefinition(name: "Bench Press")
         let record = WorkoutRecord(date: Date(), exerciseDefinition: exercise)
         let set1 = SetEntry(weight: 80, reps: 8, workoutRecord: record)
@@ -452,15 +469,16 @@ struct WorkoutSessionDetailView: View {
         container.mainContext.insert(record)
         container.mainContext.insert(set1)
         container.mainContext.insert(set2)
+        record.setEntries.append(contentsOf: [set1, set2])
         
-        record.setEntries.append(set1)
-        record.setEntries.append(set2)
-        
-        return (record, container) // Return the necessary data
-    }()
+        let appSettings = AppSettings()
+        container.mainContext.insert(appSettings)
+        let themeManager = ThemeManager()
+        themeManager.currentSettings = appSettings
 
-    // Ensure the view is returned properly
-    return WorkoutSessionDetailView(workoutRecord: record)
-        .modelContainer(container)
-        .themeAware()
+        return WorkoutSessionDetailView(workoutRecord: record)
+            .modelContainer(container)
+            .environmentObject(themeManager)
+            .themeAware()
+    }
 }

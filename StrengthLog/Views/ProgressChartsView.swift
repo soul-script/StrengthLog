@@ -8,6 +8,7 @@ struct ProgressChartsView: View {
     @State private var selectedDataPoint: (date: Date, value: Double)? = nil
     @State private var chartType: ChartType = .oneRepMax
     @State private var timeRange: TimeRange = .allTime
+    @EnvironmentObject private var themeManager: ThemeManager
     
     enum ChartType: String, CaseIterable, Identifiable {
         case oneRepMax = "1RM"
@@ -171,24 +172,34 @@ struct ProgressChartsView: View {
                                             ProgressStatCard(
                                                 icon: "chart.line.uptrend.xyaxis",
                                                 title: "Latest",
-                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.last?.bestOneRepMaxInSession ?? 0 : filteredRecords.last?.totalVolume ?? 0),
-                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                value: formattedMetric(
+                                                    chartType == .oneRepMax
+                                                        ? convertOneRepMax(filteredRecords.last?.bestOneRepMaxInSession ?? 0, to: themeManager.weightUnit)
+                                                        : (filteredRecords.last.map { $0.totalVolume(in: themeManager.weightUnit) } ?? 0)
+                                                ),
+                                                unit: metricUnitLabel,
                                                 color: .blue
                                             )
                                             
                                             ProgressStatCard(
                                                 icon: "arrow.up.right",
                                                 title: "Best",
-                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.map { $0.bestOneRepMaxInSession }.max() ?? 0 : filteredRecords.map { $0.totalVolume }.max() ?? 0),
-                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                value: formattedMetric(
+                                                    chartType == .oneRepMax
+                                                        ? convertOneRepMax(filteredRecords.map { $0.bestOneRepMaxInSession }.max() ?? 0, to: themeManager.weightUnit)
+                                                        : (filteredRecords.map { $0.totalVolume(in: themeManager.weightUnit) }.max() ?? 0)
+                                                ),
+                                                unit: metricUnitLabel,
                                                 color: .green
                                             )
                                             
                                             ProgressStatCard(
                                                 icon: "chart.bar.fill",
                                                 title: "Average",
-                                                value: String(format: "%.1f", chartType == .oneRepMax ? filteredRecords.map { $0.bestOneRepMaxInSession }.reduce(0, +) / Double(filteredRecords.count) : filteredRecords.map { $0.totalVolume }.reduce(0, +) / Double(filteredRecords.count)),
-                                                unit: chartType == .oneRepMax ? "kg" : "kg",
+                                                value: formattedMetric(
+                                                    averageMetric(for: filteredRecords)
+                                                ),
+                                                unit: metricUnitLabel,
                                                 color: .orange
                                             )
                                         }
@@ -219,7 +230,7 @@ struct ProgressChartsView: View {
                                                     Text("Date: \(selected.date, format: .dateTime.day().month().year())")
                                                         .font(.caption)
                                                         .foregroundColor(.secondary)
-                                                    Text("\(chartType == .oneRepMax ? "Estimated 1RM" : "Total Volume"): \(selected.value, specifier: "%.1f") \(chartType == .oneRepMax ? "kg" : "kg")")
+                                                    Text("\(chartType == .oneRepMax ? "Estimated 1RM" : "Total Volume"): \(formattedMetric(selected.value)) \(metricUnitLabel)")
                                                         .font(.subheadline)
                                                         .fontWeight(.semibold)
                                                 }
@@ -274,12 +285,42 @@ struct ProgressChartsView: View {
         let typeLabel = chartType == .oneRepMax ? "Estimated 1RM Trend" : "Training Volume Trend"
         return "\(typeLabel) for \(exercise.name) (\(timeRange.rawValue))"
     }
+
+    private var metricUnitLabel: String {
+        chartType == .volume ? "\(themeManager.weightUnit.abbreviation) vol" : themeManager.weightUnit.abbreviation
+    }
+    
+    private func formattedMetric(_ value: Double) -> String {
+        String(Int(value.rounded(.toNearestOrAwayFromZero)))
+    }
+
+    private func averageMetric(for records: [WorkoutRecord]) -> Double {
+        guard !records.isEmpty else { return 0 }
+        let values: [Double]
+        switch chartType {
+        case .oneRepMax:
+            values = records.map { convertOneRepMax($0.bestOneRepMaxInSession, to: themeManager.weightUnit) }
+        case .volume:
+            values = records.map { $0.totalVolume(in: themeManager.weightUnit) }
+        }
+        let total = values.reduce(0, +)
+        return total / Double(values.count)
+    }
+
+    private func metricValue(for record: WorkoutRecord) -> Double {
+        switch chartType {
+        case .oneRepMax:
+            return convertOneRepMax(record.bestOneRepMaxInSession, to: themeManager.weightUnit)
+        case .volume:
+            return record.totalVolume(in: themeManager.weightUnit)
+        }
+    }
     
     @ViewBuilder
     private func chartView(for records: [WorkoutRecord]) -> some View {
         Chart {
             ForEach(records) { record in
-                let yValue = chartType == .oneRepMax ? record.bestOneRepMaxInSession : record.totalVolume
+                let yValue = metricValue(for: record)
                 
                 LineMark(
                     x: .value("Date", record.date),
@@ -335,7 +376,7 @@ struct ProgressChartsView: View {
                                 }
                                 
                                 if let record = closestRecord {
-                                    let value = chartType == .oneRepMax ? record.bestOneRepMaxInSession : record.totalVolume
+                                    let value = metricValue(for: record)
                                     selectedDataPoint = (date: record.date, value: value)
                                 }
                             }
@@ -419,27 +460,34 @@ struct ProgressChartsView_Previews: PreviewProvider {
     }
 
     static var previews: some View {
-        // This is the more modern #Preview macro style. 
-        // If your project uses the older PreviewProvider struct, the .modelContainer approach is fine.
-        // For clarity and to avoid buildExpression errors, we separate data setup.
-        
-        // Setup for PreviewProvider struct:
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
-        let container = try! ModelContainer(
-            for: ExerciseDefinition.self,
-                 WorkoutRecord.self,
-                 SetEntry.self,
-                 AppSettings.self,
-                 MajorMuscleGroup.self,
-                 SpecificMuscle.self,
-                 WorkoutCategoryTag.self,
-                 ExerciseMajorContribution.self,
-                 ExerciseSpecificContribution.self,
-            configurations: config
-        )
-        createSampleData(modelContext: container.mainContext) // Populate with data
-
-        return ProgressChartsView()
-            .modelContainer(container)
+        PreviewFactory.make()
+    }
+    
+    private enum PreviewFactory {
+        @MainActor
+        static func make() -> some View {
+            let config = ModelConfiguration(isStoredInMemoryOnly: true)
+            let container = try! ModelContainer(
+                for: ExerciseDefinition.self,
+                     WorkoutRecord.self,
+                     SetEntry.self,
+                     AppSettings.self,
+                     MajorMuscleGroup.self,
+                     SpecificMuscle.self,
+                     WorkoutCategoryTag.self,
+                     ExerciseMajorContribution.self,
+                     ExerciseSpecificContribution.self,
+                configurations: config
+            )
+            createSampleData(modelContext: container.mainContext)
+            let appSettings = AppSettings()
+            container.mainContext.insert(appSettings)
+            let themeManager = ThemeManager()
+            themeManager.currentSettings = appSettings
+            
+            return ProgressChartsView()
+                .modelContainer(container)
+                .environmentObject(themeManager)
+        }
     }
 } 

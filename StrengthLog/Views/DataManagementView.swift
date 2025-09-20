@@ -494,6 +494,7 @@ struct DataManagementView: View {
             struct SetData: Codable {
                 var id: UUID
                 var weight: Double?
+                var weightInPounds: Double?
                 var reps: Int
                 var calculatedOneRepMax: Double
             }
@@ -535,6 +536,7 @@ struct DataManagementView: View {
                         let setData = SetData(
                             id: set.id,
                             weight: set.weight,
+                            weightInPounds: set.weightValue(in: .lbs),
                             reps: set.reps,
                             calculatedOneRepMax: set.calculatedOneRepMax
                         )
@@ -676,6 +678,7 @@ struct DataManagementView: View {
         struct SetData: Codable {
             var id: UUID
             var weight: Double?
+            var weightInPounds: Double?
             var reps: Int
             var calculatedOneRepMax: Double
         }
@@ -811,9 +814,18 @@ struct DataManagementView: View {
                 modelContext.insert(workout)
                 
                 for setData in workoutData.sets {
-                    let set = SetEntry(weight: setData.weight, reps: setData.reps, workoutRecord: workout)
+                    let measurement = WeightConversionService.shared.measurement(
+                        kilograms: setData.weight,
+                        pounds: setData.weightInPounds
+                    )
+                    let set = SetEntry(
+                        weight: measurement?.kilograms,
+                        weightInPounds: measurement?.pounds,
+                        reps: setData.reps,
+                        workoutRecord: workout
+                    )
                     set.id = setData.id
-                    set.calculatedOneRepMax = setData.calculatedOneRepMax
+                    set.updateOneRepMax()
                     modelContext.insert(set)
                     workout.setEntries.append(set)
                 }

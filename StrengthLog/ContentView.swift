@@ -401,6 +401,7 @@ struct ExerciseRowView: View {
 
 struct WorkoutRowView: View {
     let workout: WorkoutRecord
+    @EnvironmentObject private var themeManager: ThemeManager
     
     var body: some View {
         HStack(spacing: 12) {
@@ -441,7 +442,8 @@ struct WorkoutRowView: View {
                         Image(systemName: "chart.bar")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
-                        Text("\(workout.totalVolume, specifier: "%.0f") vol")
+                        let volume = workout.totalVolume(in: themeManager.weightUnit)
+                        Text("\(Int(volume)) \(themeManager.weightUnit.abbreviation) vol")
                             .font(.system(size: 13))
                             .foregroundColor(.secondary)
                     }
@@ -455,7 +457,8 @@ struct WorkoutRowView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
                 
-                Text("\(workout.bestOneRepMaxInSession, specifier: "%.1f")")
+                let bestOneRep = convertOneRepMax(workout.bestOneRepMaxInSession, to: themeManager.weightUnit)
+                Text("\(Int(bestOneRep)) \(themeManager.weightUnit.abbreviation)")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.blue)
             }
@@ -468,6 +471,7 @@ struct WorkoutRowView: View {
 struct ExerciseDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var themeManager: ThemeManager
     var exercise: ExerciseDefinition
     @State private var showingAddWorkoutSheet = false
     @State private var showingDeleteConfirmation = false
@@ -487,7 +491,7 @@ struct ExerciseDetailView: View {
         for workout in exercise.workoutRecords {
             for setEntry in workout.setEntries {
                 // Only consider sets with weight for 1RM calculation
-                if setEntry.weight != nil && setEntry.calculatedOneRepMax > bestOneRM {
+                if setEntry.isWeighted && setEntry.calculatedOneRepMax > bestOneRM {
                     bestOneRM = setEntry.calculatedOneRepMax
                     bestDate = workout.date
                     foundValidOneRM = true
@@ -495,17 +499,16 @@ struct ExerciseDetailView: View {
             }
         }
         
-        return foundValidOneRM ? (value: bestOneRM, date: bestDate) : nil
-    }
-    
-    private var bestVolumeWorkout: (volume: Double, date: Date)? {
-        guard !exercise.workoutRecords.isEmpty else { return nil }
-        
-        let workoutWithMaxVolume = exercise.workoutRecords.max { $0.totalVolume < $1.totalVolume }
-        if let workout = workoutWithMaxVolume {
-            return (volume: workout.totalVolume, date: workout.date)
+        if foundValidOneRM {
+            return (value: normalizeOneRepMax(bestOneRM), date: bestDate)
         }
         return nil
+    }
+    
+    private var bestVolumeWorkout: WorkoutRecord? {
+        exercise.workoutRecords.max {
+            $0.totalVolume(in: themeManager.weightUnit) < $1.totalVolume(in: themeManager.weightUnit)
+        }
     }
 
     private var categoryNames: [String] {
@@ -756,7 +759,8 @@ struct ExerciseDetailView: View {
 
 private struct PRSummaryCard: View {
     let bestOneRepMaxData: (value: Double, date: Date)?
-    let bestVolumeWorkout: (volume: Double, date: Date)?
+    let bestVolumeWorkout: WorkoutRecord?
+    @EnvironmentObject private var themeManager: ThemeManager
 
     var body: some View {
         VStack(spacing: 16) {
@@ -777,7 +781,8 @@ private struct PRSummaryCard: View {
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.secondary)
                     if let best = bestOneRepMaxData {
-                        Text("\(best.value, specifier: "%.1f")")
+                        let converted = Int(convertOneRepMax(best.value, to: themeManager.weightUnit))
+                        Text("\(converted) \(themeManager.weightUnit.abbreviation)")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.primary)
                         Text("\(best.date, format: .dateTime.day().month())")
@@ -807,11 +812,12 @@ private struct PRSummaryCard: View {
                     Text("Best Volume")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.secondary)
-                    if let vol = bestVolumeWorkout {
-                        Text("\(vol.volume, specifier: "%.1f")")
+                    if let workout = bestVolumeWorkout {
+                        let volume = Int(workout.totalVolume(in: themeManager.weightUnit))
+                        Text("\(volume) \(themeManager.weightUnit.abbreviation) vol")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundColor(.primary)
-                        Text("\(vol.date, format: .dateTime.day().month())")
+                        Text("\(workout.date, format: .dateTime.day().month())")
                             .font(.system(size: 11))
                             .foregroundColor(.secondary)
                     } else {
@@ -836,10 +842,21 @@ private struct PRSummaryCard: View {
 }
 
 #Preview {
-    ContentView()
-        .modelContainer(for: [
-            ExerciseDefinition.self,
-            WorkoutRecord.self,
-            SetEntry.self
-        ], inMemory: true)
+    ContentViewPreviewFactory.make()
+}
+
+private enum ContentViewPreviewFactory {
+    @MainActor
+    static func make() -> some View {
+        let themeManager = ThemeManager()
+        themeManager.currentSettings = AppSettings()
+
+        return ContentView()
+            .modelContainer(for: [
+                ExerciseDefinition.self,
+                WorkoutRecord.self,
+                SetEntry.self
+            ], inMemory: true)
+            .environmentObject(themeManager)
+    }
 }

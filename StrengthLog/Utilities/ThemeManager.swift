@@ -23,41 +23,48 @@ class ThemeManager: ObservableObject {
         do {
             let settings = try context.fetch(descriptor)
             if let existingSettings = settings.first {
+                objectWillChange.send()
                 currentSettings = existingSettings
             } else {
                 // Create default settings
                 let newSettings = AppSettings()
                 context.insert(newSettings)
                 try context.save()
+                objectWillChange.send()
                 currentSettings = newSettings
             }
         } catch {
             print("Error loading settings: \(error)")
             // Fallback to default settings
+            objectWillChange.send()
             currentSettings = AppSettings()
         }
     }
     
     @MainActor
     func updateTheme(_ themeMode: ThemeMode) {
+        objectWillChange.send()
         currentSettings?.themeMode = themeMode
         saveSettings()
     }
     
     @MainActor
     func updateAccentColor(_ color: AppAccentColor) {
+        objectWillChange.send()
         currentSettings?.accentColor = color
         saveSettings()
     }
     
     @MainActor
     func updateWeightUnit(_ unit: WeightUnit) {
+        objectWillChange.send()
         currentSettings?.defaultWeightUnit = unit
         saveSettings()
     }
     
     @MainActor
     func updateAdvancedStats(_ enabled: Bool) {
+        objectWillChange.send()
         currentSettings?.showAdvancedStats = enabled
         saveSettings()
     }
@@ -109,7 +116,7 @@ extension EnvironmentValues {
 
 /// View modifier to apply theme-aware styling
 struct ThemeAware: ViewModifier {
-    @Environment(\.themeManager) var themeManager
+    @EnvironmentObject var themeManager: ThemeManager
     
     func body(content: Content) -> some View {
         content

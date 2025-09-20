@@ -4,6 +4,7 @@ import SwiftData
 struct DailyWorkoutsView: View {
     let date: Date
     @Query var workoutRecords: [WorkoutRecord]
+    @EnvironmentObject private var themeManager: ThemeManager
     
     init(date: Date) {
         self.date = date
@@ -70,12 +71,12 @@ struct DailyWorkoutsView: View {
                                 color: .green
                             )
                             
-                            DayStatCard(
-                                icon: "chart.bar.fill",
-                                title: "Volume",
-                                value: String(format: "%.1f", totalVolume),
-                                color: .orange
-                            )
+                        DayStatCard(
+                            icon: "chart.bar.fill",
+                            title: "Volume",
+                            value: volumeSummaryValue,
+                            color: .orange
+                        )
                         }
                     }
                     .padding(20)
@@ -116,13 +117,37 @@ struct DailyWorkoutsView: View {
     }
     
     private var totalVolume: Double {
-        workoutRecords.reduce(0.0) { $0 + $1.totalVolume }
+        workoutRecords.reduce(0.0) { $0 + $1.totalVolume(in: themeManager.weightUnit) }
     }
-    
+
     private var uniqueExercises: Int {
         Set(workoutRecords.compactMap { $0.exerciseDefinition?.name }).count
     }
-    
+
+    private var hasWeightedSets: Bool {
+        workoutRecords.contains { record in
+            record.setEntries.contains { $0.isWeighted }
+        }
+    }
+
+    private var hasBodyweightSets: Bool {
+        workoutRecords.contains { record in
+            record.setEntries.contains { !$0.isWeighted }
+        }
+    }
+
+    private var volumeSummaryValue: String {
+        let volumeValue = Int(totalVolume.rounded(.toNearestOrAwayFromZero))
+        switch (hasWeightedSets, hasBodyweightSets) {
+        case (true, true):
+            return "\(volumeValue) \(themeManager.weightUnit.abbreviation) vol (mixed)"
+        case (false, true):
+            return "\(volumeValue) reps"
+        default:
+            return "\(volumeValue) \(themeManager.weightUnit.abbreviation) vol"
+        }
+    }
+
     private var formattedDate: String {
         date.formatted(.dateTime.day().month().year())
     }
@@ -166,6 +191,7 @@ struct DayStatCard: View {
 // Enhanced workout row component
 struct EnhancedWorkoutRow: View {
     let workoutRecord: WorkoutRecord
+    @EnvironmentObject private var themeManager: ThemeManager
     
     var formattedTime: String {
         workoutRecord.date.formatted(.dateTime.hour().minute())
@@ -211,12 +237,12 @@ struct EnhancedWorkoutRow: View {
                             .foregroundColor(.secondary)
                     }
                     
-                    if workoutRecord.totalVolume > 0 {
+                    if let volumeLabel = volumeDetailText {
                         HStack(spacing: 4) {
                             Image(systemName: "chart.bar.fill")
                                 .font(.system(size: 10))
                                 .foregroundColor(.secondary)
-                            Text("Volume: \(workoutRecord.totalVolume, format: .number.precision(.fractionLength(1))) kg")
+                            Text(volumeLabel)
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
@@ -236,51 +262,76 @@ struct EnhancedWorkoutRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
+
+    private var volumeDetailText: String? {
+        let volume = workoutRecord.totalVolume(in: themeManager.weightUnit)
+        guard volume > 0 else { return nil }
+
+        let hasWeightedSets = workoutRecord.setEntries.contains { $0.isWeighted }
+        let hasBodyweightSets = workoutRecord.setEntries.contains { !$0.isWeighted }
+        let volumeValue = Int(volume.rounded(.toNearestOrAwayFromZero))
+
+        if hasWeightedSets && hasBodyweightSets {
+            return "Volume: \(volumeValue) \(themeManager.weightUnit.abbreviation) vol (mixed)"
+        }
+        if hasBodyweightSets && !hasWeightedSets {
+            return "Volume: \(volumeValue) reps"
+        }
+        return "Volume: \(volumeValue) \(themeManager.weightUnit.abbreviation) vol"
+    }
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(
-        for: ExerciseDefinition.self,
-             WorkoutRecord.self,
-             SetEntry.self,
-             AppSettings.self,
-             MajorMuscleGroup.self,
-             SpecificMuscle.self,
-             WorkoutCategoryTag.self,
-             ExerciseMajorContribution.self,
-             ExerciseSpecificContribution.self,
-        configurations: config
-    )
-    
-    // Create sample data
-    let exercise1 = ExerciseDefinition(name: "Bench Press")
-    let exercise2 = ExerciseDefinition(name: "Squat")
-    container.mainContext.insert(exercise1)
-    container.mainContext.insert(exercise2)
-    
-    // Create records for the same day
-    let today = Date()
-    let morningWorkout = WorkoutRecord(date: Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: today)!, exerciseDefinition: exercise1)
-    let eveningWorkout = WorkoutRecord(date: Calendar.current.date(bySettingHour: 18, minute: 0, second: 0, of: today)!, exerciseDefinition: exercise2)
-    
-    container.mainContext.insert(morningWorkout)
-    container.mainContext.insert(eveningWorkout)
-    
-    // Add sets
-    let set1 = SetEntry(weight: 80, reps: 8, workoutRecord: morningWorkout)
-    let set2 = SetEntry(weight: 85, reps: 6, workoutRecord: morningWorkout)
-    let set3 = SetEntry(weight: 120, reps: 5, workoutRecord: eveningWorkout)
-    
-    container.mainContext.insert(set1)
-    container.mainContext.insert(set2)
-    container.mainContext.insert(set3)
-    
-    morningWorkout.setEntries = [set1, set2]
-    eveningWorkout.setEntries = [set3]
-    
-    return NavigationStack {
-        DailyWorkoutsView(date: today)
+    DailyWorkoutsViewPreviewFactory.make()
+}
+
+private enum DailyWorkoutsViewPreviewFactory {
+    @MainActor
+    static func make() -> some View {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(
+            for: ExerciseDefinition.self,
+                 WorkoutRecord.self,
+                 SetEntry.self,
+                 AppSettings.self,
+                 MajorMuscleGroup.self,
+                 SpecificMuscle.self,
+                 WorkoutCategoryTag.self,
+                 ExerciseMajorContribution.self,
+                 ExerciseSpecificContribution.self,
+            configurations: config
+        )
+        
+        let exercise1 = ExerciseDefinition(name: "Bench Press")
+        let exercise2 = ExerciseDefinition(name: "Squat")
+        container.mainContext.insert(exercise1)
+        container.mainContext.insert(exercise2)
+        
+        let today = Date()
+        let calendar = Calendar.current
+        let morningWorkout = WorkoutRecord(date: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today)!, exerciseDefinition: exercise1)
+        let eveningWorkout = WorkoutRecord(date: calendar.date(bySettingHour: 18, minute: 0, second: 0, of: today)!, exerciseDefinition: exercise2)
+        container.mainContext.insert(morningWorkout)
+        container.mainContext.insert(eveningWorkout)
+        
+        let set1 = SetEntry(weight: 80, reps: 8, workoutRecord: morningWorkout)
+        let set2 = SetEntry(weight: 85, reps: 6, workoutRecord: morningWorkout)
+        let set3 = SetEntry(weight: 120, reps: 5, workoutRecord: eveningWorkout)
+        container.mainContext.insert(set1)
+        container.mainContext.insert(set2)
+        container.mainContext.insert(set3)
+        morningWorkout.setEntries = [set1, set2]
+        eveningWorkout.setEntries = [set3]
+        
+        let appSettings = AppSettings()
+        container.mainContext.insert(appSettings)
+        let themeManager = ThemeManager()
+        themeManager.currentSettings = appSettings
+
+        return NavigationStack {
+            DailyWorkoutsView(date: today)
+        }
+        .modelContainer(container)
+        .environmentObject(themeManager)
     }
-    .modelContainer(container)
-} 
+}

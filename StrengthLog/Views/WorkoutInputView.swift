@@ -5,6 +5,7 @@ import Foundation
 struct WorkoutInputView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) var dismiss
+    @EnvironmentObject private var themeManager: ThemeManager
 
     var exerciseDefinition: ExerciseDefinition
 
@@ -15,28 +16,27 @@ struct WorkoutInputView: View {
     @State private var isBodyweightExercise: Bool = false
     
     // Computed property for current total volume
-    var currentTotalVolume: Double {
-        sets.reduce(0) { total, set in
-            if let weight = set.weight {
-                return total + (weight * Double(set.reps))
-            } else {
-                // For bodyweight exercises, volume is just the number of reps
-                return total + Double(set.reps)
-            }
-        }
-    }
-    
-    // Temporary struct to hold set data before saving
     struct TemporarySetEntry: Identifiable {
         let id = UUID()
-        var weight: Double?
+        var measurement: WeightMeasurement?
         var reps: Int
-        var oneRepMax: Double {
-            if let weight = weight {
-                return calculateOneRepMax(weight: weight, reps: reps)
-            } else {
-                return 0.0 // No 1RM for bodyweight exercises
-            }
+
+        var isWeighted: Bool {
+            measurement != nil
+        }
+
+        func weight(in unit: WeightUnit) -> Double? {
+            measurement?.value(in: unit)
+        }
+
+        var oneRepMaxKilograms: Double {
+            guard let measurement else { return 0 }
+            return calculateOneRepMax(weight: measurement.kilograms, reps: reps)
+        }
+
+        func displayOneRepMax(in unit: WeightUnit) -> Int? {
+            guard measurement != nil else { return nil }
+            return Int(convertOneRepMax(oneRepMaxKilograms, to: unit))
         }
     }
 
@@ -144,7 +144,7 @@ struct WorkoutInputView: View {
                                 .font(.system(size: 16, weight: .medium))
                                 .frame(width: 60, alignment: .leading)
                             
-                            TextField("kg/lbs", text: $weightString)
+                            TextField(themeManager.weightUnit.abbreviation, text: $weightString)
                                 .keyboardType(.decimalPad)
                                 .multilineTextAlignment(.trailing)
                                 .textFieldStyle(RoundedBorderTextFieldStyle())
@@ -225,16 +225,16 @@ struct WorkoutInputView: View {
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    if let weight = set.weight {
-                                        Text("\(weight, specifier: "%.1f") kg/lbs × \(set.reps) reps")
+                                    if let weight = set.weight(in: themeManager.weightUnit) {
+                                        Text("\(Int(weight)) \(themeManager.weightUnit.abbreviation) × \(set.reps) reps")
                                             .font(.system(size: 15, weight: .medium))
                                     } else {
                                         Text("\(set.reps) reps (bodyweight)")
                                             .font(.system(size: 15, weight: .medium))
                                     }
                                     
-                                    if set.oneRepMax > 0 {
-                                        Text("1RM: \(set.oneRepMax, specifier: "%.1f")")
+                                    if let oneRep = set.displayOneRepMax(in: themeManager.weightUnit), oneRep > 0 {
+                                        Text("1RM: \(oneRep) \(themeManager.weightUnit.abbreviation)")
                                             .font(.system(size: 12))
                                             .foregroundColor(.secondary)
                                     }
@@ -272,16 +272,19 @@ struct WorkoutInputView: View {
                             Text("Total Volume")
                                 .font(.system(size: 16, weight: .medium))
                             
-                            if sets.contains(where: { $0.weight == nil }) && sets.contains(where: { $0.weight != nil }) {
-                                Text("\(currentTotalVolume, format: .number.precision(.fractionLength(1))) (mixed)")
+                            let hasWeightedSets = sets.contains(where: { $0.isWeighted })
+                            let hasBodyweightSets = sets.contains(where: { !$0.isWeighted })
+                            let currentTotalVolume = totalVolume(in: themeManager.weightUnit)
+                            if hasWeightedSets && hasBodyweightSets {
+                                Text("\(Int(currentTotalVolume)) \(themeManager.weightUnit.abbreviation) vol (mixed)")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.green)
-                            } else if sets.allSatisfy({ $0.weight == nil }) {
-                                Text("\(currentTotalVolume, format: .number.precision(.fractionLength(0))) reps")
+                            } else if !hasWeightedSets {
+                                Text("\(Int(currentTotalVolume)) reps")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.green)
                             } else {
-                                Text("\(currentTotalVolume, format: .number.precision(.fractionLength(1)))")
+                                Text("\(Int(currentTotalVolume)) \(themeManager.weightUnit.abbreviation) vol")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(.green)
                             }
@@ -309,47 +312,54 @@ struct WorkoutInputView: View {
         }
     }
     
+    private func totalVolume(in unit: WeightUnit) -> Double {
+        sets.reduce(0) { total, set in
+            if let weight = set.weight(in: unit) {
+                return total + (weight * Double(set.reps))
+            }
+            return total + Double(set.reps)
+        }
+    }
+
     private func isValidInput() -> Bool {
-        // Check reps first
-        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
-              reps > 0 else {
+        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)), reps > 0 else {
             return false
         }
-        
-        // For bodyweight exercises, only reps need to be valid
+
         if isBodyweightExercise {
             return true
         }
-        
-        // For weighted exercises, weight must also be valid
-        guard let weight = Double(weightString.trimmingCharacters(in: .whitespaces)),
-              weight > 0 else {
+
+        guard
+            let rawWeight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+            WeightConversionService.shared.measurement(from: rawWeight, unit: themeManager.weightUnit) != nil
+        else {
             return false
         }
-        
+
         return true
     }
 
     private func addSet() {
-        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)),
-              reps > 0 else {
+        guard let reps = Int(repsString.trimmingCharacters(in: .whitespaces)), reps > 0 else {
             return
         }
-        
-        let weight: Double? = isBodyweightExercise ? nil : Double(weightString.trimmingCharacters(in: .whitespaces))
-        
-        // For weighted exercises, validate weight
-        if !isBodyweightExercise {
-            guard let validWeight = weight, validWeight > 0 else {
+
+        let measurement: WeightMeasurement?
+        if isBodyweightExercise {
+            measurement = nil
+        } else {
+            guard
+                let rawWeight = Double(weightString.trimmingCharacters(in: .whitespaces)),
+                let normalized = WeightConversionService.shared.measurement(from: rawWeight, unit: themeManager.weightUnit)
+            else {
                 return
             }
+            measurement = normalized
         }
-        
-        let newSet = TemporarySetEntry(weight: weight, reps: reps)
+
+        let newSet = TemporarySetEntry(measurement: measurement, reps: reps)
         sets.append(newSet)
-        
-        // Keep the values for easier entry of multiple sets with similar values
-        // User can edit as needed for the next set
     }
 
     private func deleteSet(at offsets: IndexSet) {
@@ -363,7 +373,12 @@ struct WorkoutInputView: View {
 
         // Add all sets to the workout record
         for tempSet in sets {
-            let setEntry = SetEntry(weight: tempSet.weight, reps: tempSet.reps, workoutRecord: newWorkoutRecord)
+            let setEntry = SetEntry(
+                weight: tempSet.measurement?.kilograms,
+                weightInPounds: tempSet.measurement?.pounds,
+                reps: tempSet.reps,
+                workoutRecord: newWorkoutRecord
+            )
             modelContext.insert(setEntry)
             newWorkoutRecord.setEntries.append(setEntry)
         }
@@ -386,27 +401,44 @@ struct WorkoutInputView: View {
 
 // Preview needs an ExerciseDefinition.
 #Preview {
-    // Create a dummy ExerciseDefinition for the preview
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(
-        for: ExerciseDefinition.self,
-             WorkoutRecord.self,
-             SetEntry.self,
-             AppSettings.self,
-             MajorMuscleGroup.self,
-             SpecificMuscle.self,
-             WorkoutCategoryTag.self,
-             ExerciseMajorContribution.self,
-             ExerciseSpecificContribution.self,
-        configurations: config
-    )
-    let exampleExercise = ExerciseDefinition(name: "Bench Press")
-    // It's important to insert the exampleExercise into the context if WorkoutInputView or its children might try to use its modelContext.
-    // However, for this specific preview, WorkoutInputView primarily uses the passed exerciseDefinition for its name and to link upon saving.
-    // If the view were to, for example, immediately fetch related data *from* the exerciseDefinition using its context, insertion would be critical here.
-    // For now, just passing it should be fine for display and initial interaction.
-    // container.mainContext.insert(exampleExercise) // Uncomment if issues arise related to model context from exercise.
-    
-    WorkoutInputView(exerciseDefinition: exampleExercise)
-        .modelContainer(container) // Provide the container to the view hierarchy for @Environment(\.modelContext).
-} 
+    WorkoutInputViewPreviewFactory.make()
+}
+
+private enum WorkoutInputViewPreviewFactory {
+    @MainActor
+    static func make() -> some View {
+        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try! ModelContainer(
+            for: ExerciseDefinition.self,
+                 WorkoutRecord.self,
+                 SetEntry.self,
+                 AppSettings.self,
+                 MajorMuscleGroup.self,
+                 SpecificMuscle.self,
+                 WorkoutCategoryTag.self,
+                 ExerciseMajorContribution.self,
+                 ExerciseSpecificContribution.self,
+            configurations: config
+        )
+
+        let exercise = ExerciseDefinition(name: "Bench Press")
+        container.mainContext.insert(exercise)
+
+        let workout = WorkoutRecord(date: Date(), exerciseDefinition: exercise)
+        container.mainContext.insert(workout)
+
+        let sampleSet = SetEntry(weight: 80, reps: 8, workoutRecord: workout)
+        container.mainContext.insert(sampleSet)
+        workout.setEntries.append(sampleSet)
+
+        let appSettings = AppSettings()
+        container.mainContext.insert(appSettings)
+
+        let themeManager = ThemeManager()
+        themeManager.currentSettings = appSettings
+
+        return WorkoutInputView(exerciseDefinition: exercise)
+            .modelContainer(container)
+            .environmentObject(themeManager)
+    }
+}

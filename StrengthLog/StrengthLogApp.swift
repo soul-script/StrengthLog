@@ -48,16 +48,19 @@ struct StrengthLogApp: App {
 }
 
 struct ThemeAwareContentView: View {
-    @Query var settings: [AppSettings]
-    
-    private var currentSettings: AppSettings? {
-        settings.first
-    }
+    @Environment(\.modelContext) private var modelContext
+    @StateObject private var themeManager = ThemeManager()
+    @State private var hasInitializedTheme = false
     
     var body: some View {
         ContentView()
-            .preferredColorScheme(currentSettings?.themeMode.colorScheme)
-            .tint(currentSettings?.accentColor.color ?? .blue)
+            .environmentObject(themeManager)
+            .task {
+                guard await MainActor.run(body: { !hasInitializedTheme }) else { return }
+                await MainActor.run { hasInitializedTheme = true }
+                await themeManager.initialize(with: modelContext)
+            }
+            .preferredColorScheme(themeManager.colorScheme)
+            .tint(themeManager.accentColor)
     }
 }
-

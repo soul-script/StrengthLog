@@ -4,17 +4,22 @@ import SwiftData
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var themeManager: ThemeManager
     @Query var settings: [AppSettings]
     
     private var currentSettings: AppSettings {
+        if let managerSettings = themeManager.currentSettings {
+            return managerSettings
+        }
         if let existingSettings = settings.first {
             return existingSettings
-        } else {
-            let newSettings = AppSettings()
-            modelContext.insert(newSettings)
-            try? modelContext.save()
-            return newSettings
         }
+        let newSettings = AppSettings()
+        modelContext.insert(newSettings)
+        try? modelContext.save()
+        themeManager.objectWillChange.send()
+        themeManager.currentSettings = newSettings
+        return newSettings
     }
     
     var body: some View {
@@ -44,8 +49,7 @@ struct SettingsView: View {
                         HStack(spacing: 12) {
                             ForEach(ThemeMode.allCases) { mode in
                                 Button(action: {
-                                    currentSettings.themeMode = mode
-                                    try? modelContext.save()
+                                    themeManager.updateTheme(mode)
                                 }) {
                                     VStack(spacing: 6) {
                                         ZStack {
@@ -54,7 +58,7 @@ struct SettingsView: View {
                                                 .frame(width: 44, height: 44)
                                                 .overlay(
                                                     RoundedRectangle(cornerRadius: 8)
-                                                        .stroke(currentSettings.themeMode == mode ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: currentSettings.themeMode == mode ? 2 : 1)
+                                            .stroke(currentSettings.themeMode == mode ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: currentSettings.themeMode == mode ? 2 : 1)
                                                 )
                                             
                                             Image(systemName: mode.systemImage)
@@ -88,8 +92,7 @@ struct SettingsView: View {
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 16) {
                             ForEach(AppAccentColor.allCases) { color in
                                 Button(action: {
-                                    currentSettings.accentColor = color
-                                    try? modelContext.save()
+                                    themeManager.updateAccentColor(color)
                                 }) {
                                     ZStack {
                                         Circle()
@@ -149,10 +152,9 @@ struct SettingsView: View {
                         Spacer()
                         
                         Picker("Weight Unit", selection: Binding(
-                            get: { currentSettings.defaultWeightUnit },
+                            get: { themeManager.weightUnit },
                             set: { newValue in
-                                currentSettings.defaultWeightUnit = newValue
-                                try? modelContext.save()
+                                themeManager.updateWeightUnit(newValue)
                             }
                         )) {
                             ForEach(WeightUnit.allCases) { unit in
@@ -187,8 +189,7 @@ struct SettingsView: View {
                         Toggle("", isOn: Binding(
                             get: { currentSettings.showAdvancedStats },
                             set: { newValue in
-                                currentSettings.showAdvancedStats = newValue
-                                try? modelContext.save()
+                                themeManager.updateAdvancedStats(newValue)
                             }
                         ))
                     }
