@@ -34,6 +34,7 @@
   - **Seamless Navigation:** Improved back button behavior ensures you always return to the previous screen.
 - **Enhanced Session Details:**
   - **Modern Interface:** Completely redesigned session details with improved visual hierarchy and user experience.
+  - **Muscle Volume Distribution Charts (New!):** Instantly see how your workout volume is distributed across different muscle groups with detailed pie charts, providing clear visual feedback on your training focus.
   - **Smart Summary Cards:** Visual overview showing total volume, set count, and exercise information at a glance.
   - **Numbered Set Display:** Sets displayed with numbered badges and clear weight/reps information.
   - **Clear Weight Display:** Weights are normalized to 0.5 kg / 0.1 lb and shown with up to one decimal place (e.g., 52.3 → 52.5 kg) for clarity and consistency.
@@ -107,11 +108,11 @@ StrengthLog is currently feature-complete based on its initial and expanded scop
 
 Recent updates include:
 
+- **Muscle Volume Distribution Charts (v2.9):** Added detailed pie charts in the session detail view to provide an immediate visual breakdown of training volume by major and specific muscle groups.
 - **MVVM + Repositories & DI (v2.8):** Introduced ViewModels for major screens and a repository layer over SwiftData with dependency injection via environment, improving testability, performance, and separation of concerns without changing UI behavior.
 - **Standardized Weight Rounding (v2.8):** All weights normalize to documented increments (0.5 kg / 0.1 lb). Precision options and legacy modes were removed; conversions are deterministic and idempotent within these increments.
 - **Faster, Safer Import (v2.8):** Implemented minimal-shape import: JSON decoding now occurs off the main thread with `OSLog` instrumentation; apply-import and UI state updates remain on the main thread.
 - **De-duplicated Metrics (v2.8):** Added a pure `ContributionMetricsBuilder` used across exercise info/detail views to compute contribution breakdowns consistently.
-
 - **Exercise Taxonomy & Enhanced Weight Management (v2.7):** Complete muscle tracking system with major muscle groups, specific muscle contributions, and percentage-based tracking. Enhanced weight conversion service with dual-unit storage and improved theme management architecture.
 - **Comprehensive Muscle Tracking System (v2.7):** Added sophisticated exercise taxonomy with major muscle groups, specific muscles, exercise categories, and contribution tracking. Includes template-based exercise creation and validation systems.
 - **Enhanced Weight Conversion Architecture (v2.7):** Implemented comprehensive WeightConversionService for accurate kg/lbs conversions, dual-unit storage in SetEntry models, and unit-aware calculations throughout the application.

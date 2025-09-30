@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import Foundation
+import Charts
 
 struct WorkoutSessionDetailView: View {
     @Environment(\.modelContext) private var modelContext
@@ -31,6 +32,10 @@ struct WorkoutSessionDetailView: View {
             }
             return indexA < indexB
         }
+    }
+    
+    private var volumeContributionResult: WorkoutVolumeContributionBuilder.Result? {
+        WorkoutVolumeContributionBuilder.build(for: workoutRecord, unit: themeManager.weightUnit)
     }
 
     var body: some View {
@@ -252,6 +257,42 @@ struct WorkoutSessionDetailView: View {
                     .disabled(!isValidNewSet())
                     .buttonStyle(.plain)
                 }
+                
+                if let volumeContributionResult {
+                    Section(header: HStack {
+                        Image(systemName: "chart.pie.fill")
+                            .foregroundColor(themeManager.accentColor)
+                            .font(.system(size: 14, weight: .medium))
+                        Text("Muscle Volume Distribution")
+                    }) {
+                        WorkoutContributionChartCard(
+                            title: "Major Muscle Groups",
+                            subtitle: majorDistributionSubtitle(for: volumeContributionResult),
+                            slices: volumeContributionResult.majorSlices
+                        )
+                        .padding(.vertical, 4)
+                        
+                        if volumeContributionResult.specificGroups.isEmpty {
+                            HStack(spacing: 8) {
+                                Image(systemName: "info.circle")
+                                    .foregroundColor(.secondary)
+                                Text("Specific muscle contributions are not defined for this exercise.")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(.vertical, 8)
+                        } else {
+                            ForEach(volumeContributionResult.specificGroups) { group in
+                                WorkoutContributionChartCard(
+                                    title: "\(group.groupName) (\(group.groupShare)%)",
+                                    subtitle: specificDistributionSubtitle(for: group, measurement: volumeContributionResult.measurement),
+                                    slices: group.slices
+                                )
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                }
             }
         }
         .navigationTitle("Session Details")
@@ -383,6 +424,32 @@ struct WorkoutSessionDetailView: View {
             }
         }
         .themeAware()
+    }
+    
+    private func majorDistributionSubtitle(for result: WorkoutVolumeContributionBuilder.Result) -> String {
+        formattedVolume(result.totalVolume, measurement: result.measurement)
+    }
+    
+    private func specificDistributionSubtitle(
+        for group: WorkoutVolumeContributionBuilder.SpecificGroup,
+        measurement: WorkoutVolumeContributionBuilder.Measurement
+    ) -> String {
+        let base = formattedVolume(group.totalVolume, measurement: measurement)
+        return "\(base) • \(group.groupShare)% of session"
+    }
+    
+    private func formattedVolume(
+        _ volume: Double,
+        measurement: WorkoutVolumeContributionBuilder.Measurement
+    ) -> String {
+        switch measurement {
+        case .weighted(let unit):
+            return "\(Int(volume)) \(unit.abbreviation) vol"
+        case .bodyweight:
+            return "\(Int(volume)) reps"
+        case .mixed(let unit):
+            return "\(Int(volume)) \(unit.abbreviation) vol (mixed)"
+        }
     }
     
     // Validation for new set inputs

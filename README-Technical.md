@@ -1,6 +1,6 @@
 # StrengthLog: Technical Documentation
 
-**Version:** 2.8 (MVVM + Repositories, Import Performance, Standardized Rounding)
+**Version:** 2.9 (Muscle Volume Distribution Charts)
 **Date:** September 2025
 **Document Purpose:** This document provides a comprehensive technical overview of the StrengthLog iOS application, intended for development teams, new developers onboarding to the project, or for future maintenance and enhancement purposes.
 
@@ -293,7 +293,7 @@ All data models are located in the `Models/` directory.
   - **Navigation:** Each `DailySummaryRow` is a `NavigationLink` to `DailyWorkoutsView` for that specific day.
   - Handles empty states if no workouts are found in the selected period.
 - **Navigation Title:** "Workout History".
- - **Architecture:** Backed by `WorkoutHistoryViewModel` (time filters, derived groupings, and logging).
+- **Architecture:** Backed by `WorkoutHistoryViewModel` (time filters, derived groupings, and logging).
 
 ### 5.5. `Views/DailyWorkoutsView.swift`
 
@@ -307,9 +307,9 @@ All data models are located in the `Models/` directory.
   - Each listed workout is a `NavigationLink` to `WorkoutSessionDetailView`.
 - **Navigation Title:** Formatted date (e.g., "May 18, 2025").
 
-### 5.6. `WorkoutSessionDetailView.swift` (Updated Version 2.6)
+### 5.6. `WorkoutSessionDetailView.swift` (Updated Version 2.9)
 
-- **Purpose:** Shows full details of a selected `WorkoutRecord` with a completely redesigned modern interface, allowing users to edit/delete individual sets, edit the workout date, and add new sets.
+- **Purpose:** Shows full details of a selected `WorkoutRecord` with a completely redesigned modern interface, allowing users to edit/delete individual sets, edit the workout date, add new sets, and view detailed muscle volume distribution charts.
 - **Navigation:** Uses `NavigationStack` for all modal sheets to ensure proper back button behavior.
 - **Enhanced UI Design (Version 2.5):**
   - **Modern Interface:** Complete visual overhaul with improved hierarchy, spacing, and user experience.
@@ -324,10 +324,15 @@ All data models are located in the `Models/` directory.
   - States for editing an existing set (`selectedSet`, `isEditingSet`, `editingWeight`, `editingReps`).
   - States for editing the workout date (`isEditingDate`, `editingDate`).
   - States for adding a new set (`newWeight`, `newReps`, `isBodyweightExercise`).
-- **Enhanced Functionality:**
+- **Enhanced Functionality (Version 2.9):**
   - **Smart Header Display:** Exercise name with dumbbell icon, formatted date with calendar icon.
   - **Visual Summary Card:** Total volume and set count displayed in a styled background card.
     - Metrics dynamically convert using `ThemeManager.weightUnit`.
+  - **Muscle Volume Distribution (New in v2.9):**
+    - A new section displays pie charts visualizing the workout's volume distribution across major and specific muscle groups.
+    - Powered by `WorkoutVolumeContributionBuilder` to calculate contributions based on the session's total volume.
+    - Displays separate charts for major muscle groups and each relevant specific muscle group breakdown.
+    - Subtitles provide context on total volume and the percentage share of the session.
   - **Enhanced Sets List:**
     - `sortedSets: [SetEntry]`: Chronologically ordered sets (oldest first).
     - **Numbered Display:** Each set shows with a numbered badge using theme accent color.
@@ -498,6 +503,26 @@ All data models are located in the `Models/` directory.
 - **Purpose:** Lightweight preview bootstrapper that wires a temporary `ModelContainer`, repositories via `RepositoryProvider`, and initializes `ThemeManager` from `SettingsRepository`.
 - **Usage:** `dependencies.apply(to:)` in previews to ensure consistent environment setup without directly mutating `ThemeManager` internals.
 
+### 5.20. `Utilities/WorkoutVolumeContributionBuilder.swift` (Version 2.9)
+
+- **Purpose:** Pure, deterministic builder that computes muscle volume distribution for a given `WorkoutRecord`.
+- **Outputs:** A `Result` struct containing the total volume, measurement type (weighted, bodyweight, or mixed), an array of `Slice`s for major muscle groups, and an array of `SpecificGroup`s, each with its own `Slice` array for specific muscle breakdowns.
+- **Logic:**
+  - Calculates total session volume based on the user's preferred weight unit.
+  - Determines the measurement type based on the sets performed.
+  - Computes the volume share for each major and specific muscle group based on the percentages defined in the `ExerciseDefinition`.
+  - Normalizes specific muscle contributions relative to their parent major group's volume.
+- **Usage:** Consumed by `WorkoutSessionDetailView` to generate data for the muscle volume distribution charts.
+
+### 5.21. `Views/WorkoutContributionChartView.swift` (Version 2.9)
+
+- **Purpose:** A reusable, self-contained SwiftUI view component for displaying muscle contribution data in a pie chart format.
+- **Features:**
+  - Displays a donut-style pie chart using the SwiftUI `Charts` framework.
+  - Includes a detailed legend showing each muscle, its color-coded indicator, and its percentage share.
+  - Accepts a title, an optional subtitle, and an array of `WorkoutVolumeContributionBuilder.Slice` to render.
+  - Encapsulated in a styled card with a consistent header.
+
 ## 6. Key Functionalities & Features
 
 ### 6.1. Enhanced Exercise Management & Taxonomy System
@@ -525,7 +550,7 @@ All data models are located in the `Models/` directory.
 - **Filtering:** Filter history by Week (default), Month, Year, or All Time.
 - **Period Navigation:** Navigate to previous/next week, month, or year.
 - **Seamless Navigation:** Fixed back button behavior throughout the navigation flow.
-- **Individual Session View:** Drill down from daily summary to `DailyWorkoutsView` (listing sessions for that day) and then to `WorkoutSessionDetailView` (specifics of one session).
+- **Individual Session View:** Drill down from daily summary to `DailyWorkoutsView` (listing sessions for that day) and then to `WorkoutSessionDetailView` (specifics of one session, now with volume distribution charts).
 
 ### 6.4. Progress Tracking
 
@@ -612,9 +637,22 @@ All data models are located in the `Models/` directory.
 - **App Icon:** Custom `AppIcon.swift` for design. Rasterized assets needed for `Assets.xcassets`.
 - **Deployment:** Standard App Store submission.
 
-## 12. Recent Updates (Version 2.8)
+## 12. Recent Updates (Version 2.9)
 
-### 12.1. Exercise Taxonomy & Comprehensive Muscle Tracking Implementation
+### 12.1. Muscle Volume Distribution Charts
+
+- **New Feature:** Added detailed muscle volume distribution charts to the `WorkoutSessionDetailView`.
+- **Functionality:**
+  - For each workout session, the app now displays pie charts that break down the total training volume by the contributing major and specific muscle groups.
+  - This provides immediate visual feedback on which muscles were targeted during the session and in what proportion.
+- **New Components:**
+  - `WorkoutVolumeContributionBuilder`: A new utility that calculates the volume distribution based on the exercise's defined muscle shares and the session's total volume. It correctly handles weighted, bodyweight, and mixed-unit workouts.
+  - `WorkoutContributionChartCard`: A reusable SwiftUI view that renders the pie chart and a detailed legend in a styled card.
+- **Integration:** The `WorkoutSessionDetailView` now uses these components to display one chart for major muscle groups and subsequent charts for each specific muscle group breakdown.
+
+## 13. Previous Updates (Version 2.8)
+
+### 13.1. Exercise Taxonomy & Comprehensive Muscle Tracking Implementation
 
 - **Complete Taxonomy System:** Implemented sophisticated exercise categorization with major muscle groups, specific muscles, and percentage-based contribution tracking.
 - **New Data Models:**
@@ -632,7 +670,7 @@ All data models are located in the `Models/` directory.
   - **Administrative Interface:** Complete CRUD operations for all taxonomy entities.
   - **Template Integration:** Automatic seeding of exercise templates with predefined contributions.
 
-### 12.2. Enhanced Weight Conversion Architecture Implementation
+### 13.2. Enhanced Weight Conversion Architecture Implementation
 
 - **WeightConversionService:** Centralized service for accurate kg/lbs conversions with consistent rounding and dual-unit storage.
 - **Dual-Unit Storage:** Enhanced `SetEntry` model to store both kilogram and pound values with synchronized updates.
@@ -649,7 +687,7 @@ All data models are located in the `Models/` directory.
   - Enhanced import/export with dual-unit data preservation.
   - Automatic conversion and display based on user weight unit preference.
 
-### 12.3. User-Controlled Reference Data & App Architecture
+### 13.3. User-Controlled Reference Data & App Architecture
 
 - **Performance Optimization:** Removed automatic reference data seeding from app startup for improved launch performance.
 - **User Control:** Moved reference data restoration to explicit user action in Data Management with detailed feedback.
@@ -662,29 +700,29 @@ All data models are located in the `Models/` directory.
   - Enhanced relationship management with proper cascade rules.
   - Improved error handling and user feedback throughout the taxonomy system.
 
-### 12.4. MVVM + Repository Layer Adoption (Version 2.8)
+### 13.4. MVVM + Repository Layer Adoption (Version 2.8)
 
 - Introduced protocol-first repositories (`ExerciseRepository`, `WorkoutRepository`, `SettingsRepository`) with SwiftData-backed implementations.
 - Injected repositories via environment using a `RepositoryProvider` composition root.
 - Extracted ViewModels for major screens to isolate presentation logic and intents from Views.
 
-### 12.5. Standardized Weight Rounding (Version 2.8)
+### 13.5. Standardized Weight Rounding (Version 2.8)
 
 - Removed precision options and legacy rounding. All weights normalize to 0.5 kg / 0.1 lb increments across the app and export/import paths.
 - Ensures deterministic displays and idempotent conversions within the documented increments.
 
-### 12.6. Minimal-Shape Import + Observability (Version 2.8)
+### 13.6. Minimal-Shape Import + Observability (Version 2.8)
 
 - Heavy JSON decode now runs off the main thread; `applyImport` executes on the main actor.
 - Added structured logging with `OSLog` for start/end and error telemetry.
 
-### 12.7. Contribution Metrics Consolidation (Version 2.8)
+### 13.7. Contribution Metrics Consolidation (Version 2.8)
 
 - Introduced `ContributionMetricsBuilder` and refactored `ExerciseInfoView` and Exercise Detail section to reuse the builder, removing duplicate logic.
 
-## 13. Previous Updates (Version 2.5)
+## 14. Previous Updates (Version 2.5)
 
-### 13.1. Session Details UI Overhaul Implementation
+### 14.1. Session Details UI Overhaul Implementation
 
 - **Complete Interface Redesign:** Transformed `WorkoutSessionDetailView` from functional to modern, visually appealing interface while maintaining core functionality.
 - **Enhanced Visual Hierarchy:**
@@ -710,9 +748,9 @@ All data models are located in the `Models/` directory.
   - **Theme-Aware Components:** `.themeAware()` modifier application for consistent theming.
   - **Improved Form Validation:** Enhanced validation with visual feedback for better user guidance.
 
-## 14. Previous Updates (Version 2.4)
+## 15. Previous Updates (Version 2.4)
 
-### 14.1. Exercise Categories & Muscle Groups Implementation (Legacy System - Replaced in v2.7)
+### 15.1. Exercise Categories & Muscle Groups Implementation (Legacy System - Replaced in v2.7)
 
 - **Legacy Data Model:** Initial categorization system for exercises with enum-based visual properties (replaced by comprehensive taxonomy system in v2.7).
 - **Previous Enums with Visual Properties (Now Deprecated):**
@@ -738,9 +776,9 @@ All data models are located in the `Models/` directory.
   - **Basic Categorization:** Enum-based exercise classification system
   - **Limited Discoverability:** Basic exercise organization without contribution tracking
 
-## 15. Previous Updates (Version 2.3)
+## 16. Previous Updates (Version 2.3)
 
-### 15.1. Dark Mode & Theme System Implementation
+### 16.1. Dark Mode & Theme System Implementation
 
 - **New Data Model:** Added `AppSettings` model with `ThemeMode`, `AppAccentColor`, and preference storage.
 - **Theme Management:** Implemented centralized `ThemeManager` with reactive updates and environment integration.
@@ -753,7 +791,7 @@ All data models are located in the `Models/` directory.
   - **Immediate Application:** Theme changes apply instantly without app restart
   - **Persistent Preferences:** All settings automatically saved and restored
 
-### 15.2. Comprehensive UI Enhancement Implementation
+### 16.2. Comprehensive UI Enhancement Implementation
 
 - **Visual Design Transformation:** Complete overhaul of the application interface from functional but plain to modern and visually appealing while maintaining core simplicity.
 - **Component Architecture:** Implemented reusable UI components for consistent design across all views:
@@ -778,9 +816,9 @@ All data models are located in the `Models/` directory.
   - **Subtle Visual Effects:** Tasteful shadows, backgrounds, and rounded corners for modern app feel
   - **Accessibility Preservation:** All enhancements maintain iOS accessibility standards and readability
 
-## 16. Previous Updates (Version 2.2)
+## 17. Previous Updates (Version 2.2)
 
-### 16.1. Timestamp Normalization (Version 2.2)
+### 17.1. Timestamp Normalization (Version 2.2)
 
 - **Consistent Midnight Timestamps:** All exercise creation, workout logging, and set entry operations now use midnight (00:00:00.000) timestamps instead of current time.
 - **Data Model Changes:** Updated `ExerciseDefinition` and `WorkoutRecord` initializers to default to midnight timestamps.
@@ -788,28 +826,28 @@ All data models are located in the `Models/` directory.
 - **Import/Export Compatibility:** Enhanced data import functions to normalize imported timestamps to midnight for consistency.
 - **Utility Functions:** Added Date extension with `midnight` property and `todayAtMidnight` static property for consistent timestamp handling throughout the app.
 
-## 17. Previous Updates (Version 2.1)
+## 18. Previous Updates (Version 2.1)
 
-### 17.1. Bodyweight Exercise Support
+### 18.1. Bodyweight Exercise Support
 
 - **Data Model Changes:** Made `SetEntry.weight` optional to support bodyweight exercises.
 - **UI Enhancements:** Added bodyweight toggles throughout the app.
 - **Smart Calculations:** Volume and 1RM calculations adapt to exercise type.
 - **Export/Import:** Updated JSON structures to handle optional weight.
 
-### 17.2. Navigation Improvements
+### 18.2. Navigation Improvements
 
 - **Architecture Change:** Replaced `NavigationSplitView` with `NavigationStack` in main ContentView.
 - **Modal Sheets:** Updated all modal presentations to use `NavigationStack`.
 - **Back Button Fix:** Resolved issue where back button would skip to main page instead of previous screen.
 - **Enhanced UX:** Added NavigationLinks to workout rows in ExerciseDetailView.
 
-### 17.3. Backward Compatibility
+### 18.3. Backward Compatibility
 
 - **Data Migration:** Existing data with weight values continues to work seamlessly.
 - **Import Compatibility:** Can import both old (weight required) and new (weight optional) JSON formats.
 
-## 18. Future Considerations / Potential Enhancements
+## 19. Future Considerations / Potential Enhancements
 
 - **Cloud Sync (iCloud)**
 - **More Advanced Charting & Analytics**
