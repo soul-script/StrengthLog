@@ -96,11 +96,11 @@ struct WeightConversionService: WeightConversionProviding {
     func measurement(from value: Double, unit: WeightUnit) -> WeightMeasurement? {
         switch unit {
         case .kg:
-            guard let kilograms = normalize(value) else { return nil }
+            guard let kilograms = normalizedValue(value, unit: .kg) else { return nil }
             let pounds = pounds(fromKilograms: kilograms)
             return WeightMeasurement(kilograms: kilograms, pounds: pounds)
         case .lbs:
-            guard let pounds = normalize(value) else { return nil }
+            guard let pounds = normalizedValue(value, unit: .lbs) else { return nil }
             let kilograms = kilograms(fromPounds: pounds)
             return WeightMeasurement(kilograms: kilograms, pounds: pounds)
         }
@@ -117,23 +117,24 @@ struct WeightConversionService: WeightConversionProviding {
     }
 
     func pounds(fromKilograms kilograms: Double) -> Double {
-        guard let sanitizedKilograms = normalize(kilograms) else { return 0 }
+        guard let sanitizedKilograms = normalizedValue(kilograms, unit: .kg) else { return 0 }
         let converted = sanitizedKilograms * poundsPerKilogram
-        return normalize(converted) ?? 0
+        return normalizedValue(converted, unit: .lbs) ?? 0
     }
 
     func kilograms(fromPounds pounds: Double) -> Double {
-        guard let sanitizedPounds = normalize(pounds) else { return 0 }
+        guard let sanitizedPounds = normalizedValue(pounds, unit: .lbs) else { return 0 }
         let converted = sanitizedPounds * kilogramsPerPound
-        return normalize(converted) ?? 0
+        return normalizedValue(converted, unit: .kg) ?? 0
     }
 
-    private func normalize(_ value: Double) -> Double? {
+    private func normalizedValue(_ value: Double, unit: WeightUnit) -> Double? {
         guard value.isFinite else { return nil }
         let sanitized = max(value, 0)
-        let rounded = sanitized.rounded(roundingRule)
-        guard rounded > 0 else { return nil }
-        return Double(Int(rounded))
+        let increment: Double = (unit == .kg) ? 0.5 : 0.1
+        let steps = (sanitized / increment).rounded(roundingRule)
+        let result = steps * increment
+        return result > 0 ? result : nil
     }
 }
 

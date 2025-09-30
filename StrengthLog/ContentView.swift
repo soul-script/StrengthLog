@@ -7,19 +7,14 @@
 
 import SwiftUI
 import SwiftData
+import OSLog
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.exerciseRepository) private var exerciseRepository
     @Query(sort: \ExerciseDefinition.name) private var exercises: [ExerciseDefinition]
     @Query(sort: \WorkoutCategoryTag.name) private var categoryTags: [WorkoutCategoryTag]
     @Query(sort: \MajorMuscleGroup.name) private var majorMuscleGroups: [MajorMuscleGroup]
-    @State private var selectedExercise: ExerciseDefinition? = nil
-    @State private var activeCategoryFilters: Set<UUID> = []
-    @State private var activeMajorGroupFilter: UUID? = nil
-    @State private var isPresentingExerciseEditor = false
-    @State private var editorMode: ExerciseEditorView.Mode = .create
-    @State private var exerciseToDelete: ExerciseDefinition? = nil
-    @State private var showingExerciseDeleteConfirmation = false
+    @StateObject private var viewModel = ContentViewModel()
 
     var body: some View {
         NavigationStack {
@@ -67,7 +62,7 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                     Spacer()
-                    Text("\(filteredExercises.count)")
+                    Text("\(viewModel.filteredExercises.count)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 8)
@@ -75,14 +70,14 @@ struct ContentView: View {
                         .background(Color.secondary.opacity(0.2))
                         .clipShape(Capsule())
                 }) {
-                    if filteredExercises.isEmpty {
-                        Text(isFilterActive ? "No exercises match the current filters." : "No exercises available yet.")
+                    if viewModel.filteredExercises.isEmpty {
+                        Text(viewModel.isFilterActive ? "No exercises match the current filters." : "No exercises available yet.")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                             .padding(.vertical, 8)
                     }
 
-                    ForEach(filteredExercises) { exercise in
+                    ForEach(viewModel.filteredExercises) { exercise in
                         NavigationLink {
                             ExerciseDetailView(exercise: exercise)
                         } label: {
@@ -90,8 +85,7 @@ struct ContentView: View {
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                             Button(role: .destructive) {
-                                exerciseToDelete = exercise
-                                showingExerciseDeleteConfirmation = true
+                                viewModel.requestDelete(exercise)
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
@@ -111,55 +105,34 @@ struct ContentView: View {
                     }
                 }
             }
-            .alert("Delete Exercise", isPresented: $showingExerciseDeleteConfirmation) {
-                Button("Cancel", role: .cancel) { exerciseToDelete = nil }
+            .alert("Delete Exercise", isPresented: $viewModel.showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) { viewModel.cancelDelete() }
                 Button("Delete", role: .destructive) {
-                    if let exercise = exerciseToDelete {
-                        modelContext.delete(exercise)
-                        do { try modelContext.save() } catch { }
-                        exerciseToDelete = nil
-                    }
+                    viewModel.confirmDelete()
                 }
             } message: {
                 Text("Are you sure you want to delete this exercise? This action cannot be undone.")
             }
-            .sheet(isPresented: $isPresentingExerciseEditor) {
+            .sheet(isPresented: $viewModel.isPresentingEditor) {
                 NavigationStack {
-                    ExerciseEditorView(mode: editorMode, exercise: editorMode == .edit ? selectedExercise : nil)
+                    ExerciseEditorView(mode: viewModel.editorMode, exercise: viewModel.editorMode == .edit ? viewModel.selectedExercise : nil)
                 }
             }
+        }
+        .task {
+            viewModel.configureIfNeeded(repository: exerciseRepository)
+            viewModel.updateData(exercises: exercises)
+        }
+        .onChange(of: exercises) { _, newValue in
+            viewModel.updateData(exercises: newValue)
+        }
+        .onChange(of: majorMuscleGroups) { _, newValue in
+            viewModel.validateMajorGroupFilter(availableGroups: newValue)
         }
     }
 
     private func promptForNewExercise() {
-        selectedExercise = nil
-        editorMode = .create
-        isPresentingExerciseEditor = true
-    }
-
-    private var filteredExercises: [ExerciseDefinition] {
-        exercises.filter { exercise in
-            let matchesCategory: Bool
-            if activeCategoryFilters.isEmpty {
-                matchesCategory = true
-            } else {
-                let exerciseCategoryIDs = Set(exercise.categories.map { $0.id })
-                matchesCategory = !exerciseCategoryIDs.isDisjoint(with: activeCategoryFilters)
-            }
-
-            let matchesMajor: Bool
-            if let majorID = activeMajorGroupFilter {
-                matchesMajor = exercise.majorContributions.contains { $0.majorGroup?.id == majorID }
-            } else {
-                matchesMajor = true
-            }
-
-            return matchesCategory && matchesMajor
-        }
-    }
-
-    private var isFilterActive: Bool {
-        !activeCategoryFilters.isEmpty || activeMajorGroupFilter != nil
+        viewModel.promptForNewExercise()
     }
 
     private var filtersSection: some View {
@@ -168,9 +141,9 @@ struct ContentView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(categoryTags) { category in
-                            let isSelected = activeCategoryFilters.contains(category.id)
+                            let isSelected = viewModel.activeCategoryFilters.contains(category.id)
                             Button {
-                                toggleCategoryFilter(category)
+                                viewModel.toggleCategoryFilter(category)
                             } label: {
                                 Text(category.name)
                                     .font(.caption)
@@ -191,10 +164,10 @@ struct ContentView: View {
 
             if !majorMuscleGroups.isEmpty {
                 Menu {
-                    Button("All Groups") { activeMajorGroupFilter = nil }
+                    Button("All Groups") { viewModel.setMajorGroupFilter(nil) }
                     ForEach(majorMuscleGroups) { group in
-                        Button(action: { activeMajorGroupFilter = group.id }) {
-                            if activeMajorGroupFilter == group.id {
+                        Button(action: { viewModel.setMajorGroupFilter(group) }) {
+                            if viewModel.activeMajorGroupFilter == group.id {
                                 Label(group.name, systemImage: "checkmark")
                             } else {
                                 Text(group.name)
@@ -217,7 +190,7 @@ struct ContentView: View {
                 }
             }
 
-            if isFilterActive {
+            if viewModel.isFilterActive {
                 Button("Clear Filters", role: .cancel, action: clearFilters)
                     .font(.footnote)
             }
@@ -225,33 +198,19 @@ struct ContentView: View {
     }
 
     private var activeMajorGroupName: String {
-        guard let majorID = activeMajorGroupFilter, let group = majorMuscleGroups.first(where: { $0.id == majorID }) else {
+        guard let majorID = viewModel.activeMajorGroupFilter,
+              let group = majorMuscleGroups.first(where: { $0.id == majorID }) else {
             return "All Muscle Groups"
         }
         return group.name
     }
 
-    private func toggleCategoryFilter(_ category: WorkoutCategoryTag) {
-        if activeCategoryFilters.contains(category.id) {
-            activeCategoryFilters.remove(category.id)
-        } else {
-            activeCategoryFilters.insert(category.id)
-        }
-    }
-
     private func clearFilters() {
-        activeCategoryFilters.removeAll()
-        activeMajorGroupFilter = nil
+        viewModel.clearFilters()
     }
 
     private func deleteExercise(offsets: IndexSet) {
-        withAnimation {
-            let currentFiltered = filteredExercises
-            for index in offsets {
-                guard index < currentFiltered.count else { continue }
-                modelContext.delete(currentFiltered[index])
-            }
-        }
+        viewModel.deleteExercises(at: offsets)
     }
 }
 
@@ -473,6 +432,7 @@ struct ExerciseDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var themeManager: ThemeManager
     var exercise: ExerciseDefinition
+    private let logger = Logger(subsystem: "com.adityamishra.StrengthLog", category: "ExerciseDetailView")
     @State private var showingAddWorkoutSheet = false
     @State private var showingDeleteConfirmation = false
     @State private var workoutToDelete: WorkoutRecord? = nil
@@ -518,13 +478,8 @@ struct ExerciseDetailView: View {
     }
 
     private var majorContributionSlices: [ContributionSlice] {
-        exercise.majorContributions
-            .filter { $0.share > 0 }
-            .sorted(by: { $0.share > $1.share })
-            .compactMap { contribution in
-                guard let name = contribution.majorGroup?.name else { return nil }
-                return ContributionSlice(name: name, percentage: Double(contribution.share) / 100.0)
-            }
+        ContributionMetricsBuilder.majorSlices(for: exercise)
+            .map { ContributionSlice(name: $0.name, percentage: $0.fraction) }
     }
 
     private struct SpecificGroupBreakdown: Identifiable {
@@ -535,28 +490,13 @@ struct ExerciseDetailView: View {
     }
 
     private var specificGroupBreakdowns: [SpecificGroupBreakdown] {
-        let grouped = Dictionary(grouping: exercise.specificContributions.filter { $0.share > 0 }) { contribution -> UUID? in
-            contribution.specificMuscle?.majorGroup?.id
+        ContributionMetricsBuilder.specificGroups(for: exercise).map { group in
+            SpecificGroupBreakdown(
+                groupName: group.groupName,
+                groupShare: group.groupShare,
+                slices: group.slices.map { ContributionSlice(name: $0.name, percentage: $0.fraction) }
+            )
         }
-
-        return grouped.compactMap { key, contributions in
-            guard
-                let groupID = key,
-                let groupShare = exercise.majorContributions.first(where: { $0.majorGroup?.id == groupID })?.share,
-                groupShare > 0,
-                let groupName = contributions.first?.specificMuscle?.majorGroup?.name
-            else { return nil }
-
-            let slices = contributions
-                .compactMap { contribution -> ContributionSlice? in
-                    guard let muscleName = contribution.specificMuscle?.name else { return nil }
-                    return ContributionSlice(name: muscleName, percentage: Double(contribution.share) / 100.0)
-                }
-                .sorted(by: { $0.percentage > $1.percentage })
-
-            return SpecificGroupBreakdown(groupName: groupName, groupShare: groupShare, slices: slices)
-        }
-        .sorted(by: { $0.groupShare > $1.groupShare })
     }
 
     private var hasContributionData: Bool {
@@ -564,7 +504,7 @@ struct ExerciseDetailView: View {
     }
 
     private var validationMessages: [String] {
-        exercise.validatePercentages()
+        ContributionMetricsBuilder.validationMessages(for: exercise)
     }
 
     var body: some View {
@@ -750,7 +690,7 @@ struct ExerciseDetailView: View {
         do {
             try modelContext.save()
         } catch {
-            print("Error deleting workout: \(error)")
+            logger.error("Error deleting workout: \(String(describing: error))")
         }
     }
 }
@@ -848,15 +788,9 @@ private struct PRSummaryCard: View {
 private enum ContentViewPreviewFactory {
     @MainActor
     static func make() -> some View {
-        let themeManager = ThemeManager()
-        themeManager.currentSettings = AppSettings()
-
-        return ContentView()
-            .modelContainer(for: [
-                ExerciseDefinition.self,
-                WorkoutRecord.self,
-                SetEntry.self
-            ], inMemory: true)
-            .environmentObject(themeManager)
+        let dependencies = try! PreviewDependencies(
+            models: [ExerciseDefinition.self, WorkoutRecord.self, SetEntry.self]
+        )
+        return dependencies.apply(to: ContentView())
     }
 }

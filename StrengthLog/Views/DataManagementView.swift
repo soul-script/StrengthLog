@@ -3,6 +3,31 @@ import SwiftData
 import UniformTypeIdentifiers
 import OSLog
 
+// MARK: - Import Model Types (shared by decode/apply)
+private struct DMCategoryRef: Codable { var name: String }
+private struct DMMajorGroupRef: Codable { var name: String; var info: String? }
+private struct DMSpecificMuscleRef: Codable { var name: String; var majorGroupName: String?; var notes: String? }
+
+private struct DMCategoryData: Codable { var name: String }
+private struct DMMajorContributionData: Codable { var groupName: String; var share: Int }
+private struct DMSpecificContributionData: Codable { var majorGroupName: String; var muscleName: String; var share: Int }
+
+private struct DMWorkoutData: Codable { var id: UUID; var date: Date; var sets: [DMSetData] }
+private struct DMSetData: Codable { var id: UUID; var weight: Double?; var weightInPounds: Double?; var reps: Int; var calculatedOneRepMax: Double }
+private struct DMExerciseData: Codable {
+    var id: UUID; var name: String; var dateAdded: Date
+    var categories: [DMCategoryData]?; var majorContributions: [DMMajorContributionData]?; var specificContributions: [DMSpecificContributionData]?; var workouts: [DMWorkoutData]
+}
+private struct DMSettingsData: Codable {
+    var themeMode: String
+    var accentColor: String
+    var showAdvancedStats: Bool
+    var defaultWeightUnit: String
+}
+private struct DMImportData: Codable {
+    var categories: [DMCategoryRef]?; var majorGroups: [DMMajorGroupRef]?; var specificMuscles: [DMSpecificMuscleRef]?; var exercises: [DMExerciseData]; var settings: DMSettingsData?
+}
+
 struct DataManagementView: View {
     @Environment(\.modelContext) private var modelContext
     @Query private var exercises: [ExerciseDefinition]
@@ -23,6 +48,7 @@ struct DataManagementView: View {
     @State private var errorMessage = ""
     @State private var showingClearConfirmation = false
     @State private var showingSeedSuccess = false
+    @State private var exportDocument = JSONDocument(initialText: "{}")
     
     var body: some View {
         ScrollView {
@@ -324,7 +350,7 @@ struct DataManagementView: View {
         .navigationBarTitleDisplayMode(.large)
         .fileExporter(
             isPresented: $isExporting,
-            document: JSONDocument(initialText: createExportJSON()),
+            document: exportDocument,
             contentType: .json,
             defaultFilename: "StrengthLog_Export_\(formattedDate())"
         ) { result in
@@ -350,8 +376,7 @@ struct DataManagementView: View {
                     
                     do {
                         let data = try Data(contentsOf: selectedURL)
-                        try importData(from: data)
-                        showingImportSuccess = true
+                        importDataAsync(from: data)
                     } catch {
                         errorMessage = error.localizedDescription
                         showingError = true
@@ -393,7 +418,25 @@ struct DataManagementView: View {
     }
     
     private func exportData() {
-        isExporting = true
+        logger.log("Export started")
+        let start = Date()
+        Task.detached { [logger] in
+            do {
+                let json = try await MainActor.run { try buildExportJSON() }
+                await MainActor.run {
+                    exportDocument = JSONDocument(initialText: json)
+                    isExporting = true
+                }
+                let duration = Date().timeIntervalSince(start) * 1000
+                logger.log("Export completed in \(Int(duration)) ms")
+            } catch {
+                logger.error("Export failed: \(String(describing: error))")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
+        }
     }
 
     private func restoreReferenceData() {
@@ -428,23 +471,26 @@ struct DataManagementView: View {
         }
     }
     
-    private func createExportJSON() -> String {
-        do {
-            // Create a data structure to represent the export data
-            struct ExportData: Codable {
-                var categories: [CategoryRef]
-                var majorGroups: [MajorGroupRef]
-                var specificMuscles: [SpecificMuscleRef]
-                var exercises: [ExerciseData]
-                var settings: SettingsData?
-            }
+    private enum DataExportError: Error {
+        case encodingFailed
+    }
+
+    private func buildExportJSON() throws -> String {
+        // Create a data structure to represent the export data
+        struct ExportData: Codable {
+            var categories: [CategoryRef]
+            var majorGroups: [MajorGroupRef]
+            var specificMuscles: [SpecificMuscleRef]
+            var exercises: [ExerciseData]
+            var settings: SettingsData?
+        }
             
-            struct SettingsData: Codable {
-                var themeMode: String
-                var accentColor: String
-                var showAdvancedStats: Bool
-                var defaultWeightUnit: String
-            }
+        struct SettingsData: Codable {
+            var themeMode: String
+            var accentColor: String
+            var showAdvancedStats: Bool
+            var defaultWeightUnit: String
+        }
 
             // Top-level reference data
             struct CategoryRef: Codable {
@@ -609,85 +655,19 @@ struct DataManagementView: View {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let jsonData = try encoder.encode(exportData)
-            
-            if let jsonString = String(data: jsonData, encoding: .utf8) {
-                return jsonString
+            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
+                throw DataExportError.encodingFailed
             }
-        } catch {
-            errorMessage = "Error creating export data: \(error.localizedDescription)"
-            showingError = true
-        }
-        
-        return "{\"error\": \"Failed to create export data\"}"
+            return jsonString
     }
     
-    private func importData(from data: Data) throws {
-        // Define the import data structure
-        struct ImportData: Codable {
-            // Top-level reference data are optional to support older exports
-            var categories: [CategoryRef]? // names only
-            var majorGroups: [MajorGroupRef]? // name + info
-            var specificMuscles: [SpecificMuscleRef]? // name + major group name
-            var exercises: [ExerciseData]
-            var settings: SettingsData?
-        }
-        
-        struct SettingsData: Codable {
-            var themeMode: String
-            var accentColor: String
-            var showAdvancedStats: Bool
-            var defaultWeightUnit: String
-        }
-
-        // Top-level reference data
-        struct CategoryRef: Codable { var name: String }
-        struct MajorGroupRef: Codable { var name: String; var info: String? }
-        struct SpecificMuscleRef: Codable { var name: String; var majorGroupName: String?; var notes: String? }
-
-        struct CategoryData: Codable {
-            var name: String
-        }
-
-        struct MajorContributionData: Codable {
-            var groupName: String
-            var share: Int
-        }
-
-        struct SpecificContributionData: Codable {
-            var majorGroupName: String
-            var muscleName: String
-            var share: Int
-        }
-
-        struct ExerciseData: Codable {
-            var id: UUID
-            var name: String
-            var dateAdded: Date
-            var categories: [CategoryData]? // optional for backward compatibility
-            var majorContributions: [MajorContributionData]? // optional for backward compatibility
-            var specificContributions: [SpecificContributionData]? // optional for backward compatibility
-            var workouts: [WorkoutData]
-        }
-        
-        struct WorkoutData: Codable {
-            var id: UUID
-            var date: Date
-            var sets: [SetData]
-        }
-        
-        struct SetData: Codable {
-            var id: UUID
-            var weight: Double?
-            var weightInPounds: Double?
-            var reps: Int
-            var calculatedOneRepMax: Double
-        }
-        
-        // Parse the JSON data
+    nonisolated private static func decodeImportData(from data: Data) throws -> DMImportData {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let importData = try decoder.decode(ImportData.self, from: data)
-        
+        return try decoder.decode(DMImportData.self, from: data)
+    }
+
+    private func applyImport(_ importData: DMImportData) throws {
         // Clear existing data (replace all)
         for exercise in exercises { modelContext.delete(exercise) }
         for muscle in muscles { modelContext.delete(muscle) }
@@ -853,12 +833,38 @@ struct DataManagementView: View {
             if let weightUnit = WeightUnit(rawValue: settingsData.defaultWeightUnit) {
                 newSettings.defaultWeightUnit = weightUnit
             }
-            
             modelContext.insert(newSettings)
         }
         
         // Save changes
         try modelContext.save()
+    }
+
+    private func importDataAsync(from data: Data) {
+        logger.log("Import started")
+        let start = Date()
+        Task.detached {
+            do {
+                let decoded = try Self.decodeImportData(from: data)
+                await MainActor.run {
+                    do {
+                        try applyImport(decoded)
+                        showingImportSuccess = true
+                    } catch {
+                        errorMessage = error.localizedDescription
+                        showingError = true
+                    }
+                }
+                let duration = Date().timeIntervalSince(start) * 1000
+                logger.log("Import completed in \(Int(duration)) ms")
+            } catch {
+                logger.error("Import failed: \(String(describing: error))")
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                    showingError = true
+                }
+            }
+        }
     }
     
     private func formattedDate() -> String {

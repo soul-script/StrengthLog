@@ -11,13 +11,8 @@ struct ExerciseInfoView: View {
     }
 
     private var majorContributionSlices: [ContributionSlice] {
-        exercise.majorContributions
-            .filter { $0.share > 0 }
-            .sorted(by: { $0.share > $1.share })
-            .compactMap { contribution in
-                guard let name = contribution.majorGroup?.name else { return nil }
-                return ContributionSlice(name: name, percentage: Double(contribution.share) / 100.0)
-            }
+        ContributionMetricsBuilder.majorSlices(for: exercise)
+            .map { ContributionSlice(name: $0.name, percentage: $0.fraction) }
     }
 
     private struct SpecificGroupBreakdown: Identifiable {
@@ -28,32 +23,17 @@ struct ExerciseInfoView: View {
     }
 
     private var specificGroupBreakdowns: [SpecificGroupBreakdown] {
-        let grouped = Dictionary(grouping: exercise.specificContributions.filter { $0.share > 0 }) { contribution -> UUID? in
-            contribution.specificMuscle?.majorGroup?.id
+        ContributionMetricsBuilder.specificGroups(for: exercise).map { group in
+            SpecificGroupBreakdown(
+                groupName: group.groupName,
+                groupShare: group.groupShare,
+                slices: group.slices.map { ContributionSlice(name: $0.name, percentage: $0.fraction) }
+            )
         }
-
-        return grouped.compactMap { key, contributions in
-            guard
-                let groupID = key,
-                let groupShare = exercise.majorContributions.first(where: { $0.majorGroup?.id == groupID })?.share,
-                groupShare > 0,
-                let groupName = contributions.first?.specificMuscle?.majorGroup?.name
-            else { return nil }
-
-            let slices = contributions
-                .compactMap { contribution -> ContributionSlice? in
-                    guard let muscleName = contribution.specificMuscle?.name else { return nil }
-                    return ContributionSlice(name: muscleName, percentage: Double(contribution.share) / 100.0)
-                }
-                .sorted(by: { $0.percentage > $1.percentage })
-
-            return SpecificGroupBreakdown(groupName: groupName, groupShare: groupShare, slices: slices)
-        }
-        .sorted(by: { $0.groupShare > $1.groupShare })
     }
 
     private var validationMessages: [String] {
-        exercise.validatePercentages()
+        ContributionMetricsBuilder.validationMessages(for: exercise)
     }
 
     var body: some View {
